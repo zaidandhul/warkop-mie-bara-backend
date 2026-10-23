@@ -10,7 +10,7 @@ const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', allowedOrigin)
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Idempotency-Key')
   if (req.method === 'OPTIONS') return res.sendStatus(204)
   next()
 })
@@ -35,8 +35,9 @@ app.get('/api/menu', async (_req, res, next) => {
 
 app.post('/api/orders', async (req, res, next) => {
   try {
-    const order = await createOrder(req.body)
-    res.status(201).json(order)
+    const idempotencyKey = req.get('Idempotency-Key')?.trim() || null
+    const { order, created } = await createOrder(req.body, { idempotencyKey })
+    res.status(created ? 201 : 200).json(order)
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message })
     next(error)

@@ -1,22 +1,22 @@
-CREATE DATABASE IF NOT EXISTS mie_bara
+CREATE DATABASE IF NOT EXISTS kopi_miebara
   CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
+  COLLATE utf8mb4_general_ci;
 
-USE mie_bara;
+USE kopi_miebara;
 
 CREATE TABLE IF NOT EXISTS categories (
   id VARCHAR(60) PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS toppings (
   id VARCHAR(60) PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   price INT UNSIGNED NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  CHECK (price >= 0)
-) ENGINE=InnoDB;
+  CONSTRAINT chk_toppings_price CHECK (price >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS menu_items (
   id VARCHAR(80) PRIMARY KEY,
@@ -34,18 +34,19 @@ CREATE TABLE IF NOT EXISTS menu_items (
   sort_order INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_menu_category FOREIGN KEY (category_id)
     REFERENCES categories(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-  CHECK (price >= 0),
+  CONSTRAINT chk_menu_price CHECK (price >= 0),
   INDEX idx_menu_category_active (category_id, is_active, sort_order)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS app_settings (
   setting_key VARCHAR(60) PRIMARY KEY,
   setting_value INT NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS orders (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_code VARCHAR(24) NOT NULL UNIQUE,
+  idempotency_key CHAR(36) NULL,
   table_number VARCHAR(30) NOT NULL,
   customer_name VARCHAR(100) NOT NULL,
   customer_phone VARCHAR(30) NULL,
@@ -56,10 +57,11 @@ CREATE TABLE IF NOT EXISTS orders (
   total INT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CHECK (total = subtotal + fee),
+  CONSTRAINT chk_orders_total CHECK (total = subtotal + fee),
+  UNIQUE KEY uq_orders_idempotency_key (idempotency_key),
   INDEX idx_orders_status_created (status, created_at),
   INDEX idx_orders_table_created (table_number, created_at)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS order_items (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     REFERENCES orders(id) ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT fk_order_items_menu FOREIGN KEY (menu_item_id)
     REFERENCES menu_items(id) ON UPDATE CASCADE ON DELETE SET NULL,
-  CHECK (qty > 0),
-  CHECK (line_total = unit_price * qty),
+  CONSTRAINT chk_order_items_qty CHECK (qty > 0),
+  CONSTRAINT chk_order_items_line_total CHECK (line_total = unit_price * qty),
   INDEX idx_order_items_order (order_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
