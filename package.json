@@ -12,7 +12,10 @@
     "db:seed": "node --env-file-if-exists=.env src/scripts/seed.js",
     "db:food-options": "node --env-file-if-exists=.env src/scripts/sync-food-options.js",
     "db:note-only": "node --env-file-if-exists=.env src/scripts/note-only-categories.js",
-    "staff:create": "node --env-file-if-exists=.env src/scripts/create-staff.js"
+    "staff:create": "node --env-file-if-exists=.env src/scripts/create-staff.js",
+    "dev:test": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.test src/server.js",
+    "db:test:setup": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/setup-test-db.js",
+    "staff:create:test": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/create-staff.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
