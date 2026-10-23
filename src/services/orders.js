@@ -21,28 +21,33 @@ async function readOrder(connection, orderCode) {
   if (!orders.length) return null
   const order = orders[0]
   const [items] = await connection.execute(
-    `SELECT menu_item_id AS itemId, item_name AS name, qty, unit_price AS unitPrice,
-            line_total AS lineTotal, level_value AS level, variant, note, toppings_snapshot AS toppings
+    `SELECT ${ORDER_ITEM_COLUMNS}
        FROM order_items WHERE order_id = (SELECT id FROM orders WHERE order_code = ?) ORDER BY id`, [orderCode]
   )
-  order.items = items.map((item) => {
-    const toppingDetails = jsonArray(item.toppings)
-    return {
-      itemId: item.itemId,
-      name: item.name,
-      qty: item.qty,
-      unitPrice: item.unitPrice,
-      lineTotal: item.lineTotal,
-      toppingDetails,
-      options: {
-        level: item.level,
-        variant: item.variant,
-        toppings: toppingDetails.map((topping) => topping.id),
-        note: item.note ?? '',
-      },
-    }
-  })
+  order.items = items.map(toOrderItem)
   return order
+}
+
+// Baris order_items (dengan alias seperti di ORDER_ITEM_COLUMNS) -> bentuk item untuk API.
+export const ORDER_ITEM_COLUMNS = `menu_item_id AS itemId, item_name AS name, qty, unit_price AS unitPrice,
+            line_total AS lineTotal, level_value AS level, variant, note, toppings_snapshot AS toppings`
+
+export function toOrderItem(item) {
+  const toppingDetails = jsonArray(item.toppings)
+  return {
+    itemId: item.itemId,
+    name: item.name,
+    qty: item.qty,
+    unitPrice: item.unitPrice,
+    lineTotal: item.lineTotal,
+    toppingDetails,
+    options: {
+      level: item.level,
+      variant: item.variant,
+      toppings: toppingDetails.map((topping) => topping.id),
+      note: item.note ?? '',
+    },
+  }
 }
 
 // Mengembalikan { order, created }. created = false berarti Idempotency-Key yang sama sudah pernah

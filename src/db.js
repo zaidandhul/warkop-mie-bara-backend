@@ -11,4 +11,11 @@ export const pool = mysql.createPool({
   queueLimit: 0,
   charset: 'utf8mb4',
   decimalNumbers: true,
+  // Sesi MySQL dan konversi Date di mysql2 sama-sama UTC, jadi hasil tidak bergantung pada zona
+  // waktu laptop/server. Batas hari WIB dihitung di utils/time.js.
+  timezone: 'Z',
+})
+
+pool.on('connection', (connection) => {
+  connection.query("SET time_zone = '+00:00'")
 })
