@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { pool } from '../db.js'
 import { jsonArray } from '../utils/json.js'
+import { isUuid, normalizePhone, normalizeTableNumber } from '../utils/validation.js'
 
 function invalid(message) {
   return Object.assign(new Error(message), { statusCode: 400 })
+}
+
+async function findOrderCodeByIdempotencyKey(connection, idempotencyKey) {
+  const [rows] = await connection.execute('SELECT order_code FROM orders WHERE idempotency_key = ?', [idempotencyKey])
+  return rows[0]?.order_code ?? null
 }
 
 async function readOrder(connection, orderCode) {
@@ -15,45 +21,60 @@ async function readOrder(connection, orderCode) {
   if (!orders.length) return null
   const order = orders[0]
   const [items] = await connection.execute(
-    `SELECT menu_item_id AS itemId, item_name AS name, qty, unit_price AS unitPrice,
-            line_total AS lineTotal, level_value AS level, variant, note, toppings_snapshot AS toppings
+    `SELECT ${ORDER_ITEM_COLUMNS}
        FROM order_items WHERE order_id = (SELECT id FROM orders WHERE order_code = ?) ORDER BY id`, [orderCode]
   )
-  order.items = items.map((item) => {
-    const toppingDetails = jsonArray(item.toppings)
-    return {
-      itemId: item.itemId,
-      name: item.name,
-      qty: item.qty,
-      unitPrice: item.unitPrice,
-      lineTotal: item.lineTotal,
-      toppingDetails,
-      options: {
-        level: item.level,
-        variant: item.variant,
-        toppings: toppingDetails.map((topping) => topping.id),
-        note: item.note ?? '',
-      },
-    }
-  })
+  order.items = items.map(toOrderItem)
   return order
 }
 
-export async function createOrder(payload) {
+// Baris order_items (dengan alias seperti di ORDER_ITEM_COLUMNS) -> bentuk item untuk API.
+export const ORDER_ITEM_COLUMNS = `menu_item_id AS itemId, item_name AS name, qty, unit_price AS unitPrice,
+            line_total AS lineTotal, level_value AS level, variant, note, toppings_snapshot AS toppings`
+
+export function toOrderItem(item) {
+  const toppingDetails = jsonArray(item.toppings)
+  return {
+    itemId: item.itemId,
+    name: item.name,
+    qty: item.qty,
+    unitPrice: item.unitPrice,
+    lineTotal: item.lineTotal,
+    toppingDetails,
+    options: {
+      level: item.level,
+      variant: item.variant,
+      toppings: toppingDetails.map((topping) => topping.id),
+      note: item.note ?? '',
+    },
+  }
+}
+
+// Mengembalikan { order, created }. created = false berarti Idempotency-Key yang sama sudah pernah
+// dipakai dan pesanan lama dikembalikan tanpa membuat pesanan baru.
+export async function createOrder(payload, { idempotencyKey = null } = {}) {
+  if (idempotencyKey !== null && !isUuid(idempotencyKey)) {
+    throw invalid('Kunci pesanan (Idempotency-Key) tidak valid. Muat ulang halaman pembayaran lalu coba lagi.')
+  }
+  if (idempotencyKey) {
+    const existingCode = await findOrderCodeByIdempotencyKey(pool, idempotencyKey)
+    if (existingCode) return { order: await readOrder(pool, existingCode), created: false }
+  }
+
   if (!payload || !Array.isArray(payload.items) || payload.items.length === 0) {
     throw invalid('Pesanan harus berisi minimal satu item.')
   }
-  if (payload.items.length > 50) throw invalid('Pesanan terlalu banyak item.')
+  if (payload.items.length > 50) throw invalid('Pesanan terlalu banyak item (maksimal 50 baris).')
 
-  const parsedTableNumber = Number(payload.tableNumber)
-  if (!Number.isInteger(parsedTableNumber) || parsedTableNumber < 1 || parsedTableNumber > 20) {
-    throw invalid('Pilih nomor meja dari 1 sampai 20.')
-  }
-  const tableNumber = String(parsedTableNumber)
+  const tableNumber = normalizeTableNumber(payload.tableNumber)
+  if (!tableNumber) throw invalid('Nomor meja tidak valid. Gunakan angka 1 sampai 99.')
   const customer = payload.customer && typeof payload.customer === 'object' ? payload.customer : {}
   const name = typeof customer.name === 'string' ? customer.name.trim() : ''
-  if (!name || name.length > 100) throw invalid('Nama pemesan wajib diisi (maksimal 100 karakter).')
-  const phone = typeof customer.phone === 'string' ? customer.phone.trim().slice(0, 30) : ''
+  if (name.length < 2 || name.length > 100) throw invalid('Nama pemesan wajib diisi, 2 sampai 100 karakter.')
+  const phone = normalizePhone(typeof customer.phone === 'string' ? customer.phone : '')
+  if (phone === null) {
+    throw invalid('Nomor HP tidak valid. Gunakan nomor HP Indonesia yang diawali 08, +62, atau 62 (10–13 digit).')
+  }
   const paymentMethod = payload.paymentMethod
   if (!['online', 'cashier'].includes(paymentMethod)) throw invalid('Metode pembayaran tidak valid.')
 
@@ -70,32 +91,42 @@ export async function createOrder(payload) {
 
     for (const input of payload.items) {
       if (!input || typeof input.itemId !== 'string') throw invalid('Setiap item harus memiliki itemId.')
-      const qty = Number(input.qty)
-      if (!Number.isInteger(qty) || qty < 1 || qty > 50) throw invalid('Jumlah item harus 1 sampai 50.')
       const [rows] = await connection.execute(
-        `SELECT id, name, price, levels_json, options_json, allowed_toppings_json
-           FROM menu_items WHERE id = ? AND is_active = 1 FOR UPDATE`, [input.itemId]
+        `SELECT id, name, price, levels_json, options_json, allowed_toppings_json, is_active
+           FROM menu_items WHERE id = ? FOR UPDATE`, [input.itemId]
       )
       const menuItem = rows[0]
-      if (!menuItem) throw invalid(`Menu ${input.itemId} tidak ditemukan atau tidak tersedia.`)
+      if (!menuItem) throw invalid(`Menu "${input.itemId}" tidak ditemukan. Muat ulang menu lalu coba lagi.`)
+      if (!menuItem.is_active) throw invalid(`${menuItem.name} sedang tidak tersedia. Hapus dari keranjang lalu coba lagi.`)
+      const qty = Number(input.qty)
+      if (!Number.isInteger(qty) || qty < 1 || qty > 50) throw invalid(`Jumlah ${menuItem.name} harus 1 sampai 50.`)
 
       const levels = jsonArray(menuItem.levels_json)
       const variants = jsonArray(menuItem.options_json)
       const allowedToppings = jsonArray(menuItem.allowed_toppings_json)
 
       const options = input.options && typeof input.options === 'object' ? input.options : {}
-      const level = options.level == null ? null : Number(options.level)
-      if (level !== null && !levels.includes(level)) throw invalid(`Level untuk ${menuItem.name} tidak valid.`)
-      const variant = options.variant == null ? null : String(options.variant)
-      if (variant !== null && !variants.includes(variant)) throw invalid(`Pilihan untuk ${menuItem.name} tidak valid.`)
+      const level = options.level == null || options.level === '' ? null : Number(options.level)
+      if (level !== null) {
+        if (!levels.length) throw invalid(`${menuItem.name} tidak memiliki pilihan level.`)
+        if (!levels.includes(level)) {
+          throw invalid(`Level ${options.level} tidak tersedia untuk ${menuItem.name}. Pilihan: ${levels.join(', ')}.`)
+        }
+      }
+      const variant = options.variant == null || options.variant === '' ? null : String(options.variant)
+      if (variant !== null) {
+        if (!variants.length) throw invalid(`${menuItem.name} tidak memiliki pilihan varian.`)
+        if (!variants.includes(variant)) throw invalid(`Varian "${variant}" tidak tersedia untuk ${menuItem.name}.`)
+      }
 
       const selectedToppings = options.toppings ?? []
-      if (!Array.isArray(selectedToppings) || new Set(selectedToppings).size !== selectedToppings.length) {
-        throw invalid('Daftar topping tidak valid.')
+      if (!Array.isArray(selectedToppings) || selectedToppings.some((id) => typeof id !== 'string')
+        || new Set(selectedToppings).size !== selectedToppings.length) {
+        throw invalid(`Daftar topping untuk ${menuItem.name} tidak valid.`)
       }
-      if (selectedToppings.some((id) => typeof id !== 'string' || !allowedToppings.includes(id))) {
-        throw invalid(`Topping untuk ${menuItem.name} tidak valid.`)
-      }
+      if (selectedToppings.length && !allowedToppings.length) throw invalid(`${menuItem.name} tidak bisa diberi topping.`)
+      const notAllowed = selectedToppings.find((id) => !allowedToppings.includes(id))
+      if (notAllowed) throw invalid(`Topping "${notAllowed}" tidak tersedia untuk ${menuItem.name}.`)
 
       let toppingRows = []
       if (selectedToppings.length) {
@@ -103,8 +134,9 @@ export async function createOrder(payload) {
         const [found] = await connection.execute(
           `SELECT id, name, price FROM toppings WHERE is_active = 1 AND id IN (${placeholders})`, selectedToppings
         )
-        if (found.length !== selectedToppings.length) throw invalid('Ada topping yang tidak tersedia.')
-        toppingRows = found
+        const inactive = selectedToppings.find((id) => !found.some((topping) => topping.id === id))
+        if (inactive) throw invalid(`Topping "${inactive}" sedang tidak tersedia. Ubah pesanan ${menuItem.name} lalu coba lagi.`)
+        toppingRows = selectedToppings.map((id) => found.find((topping) => topping.id === id))
       }
       const toppingTotal = toppingRows.reduce((sum, topping) => sum + topping.price, 0)
       const unitPrice = menuItem.price + (level ? (level - 1) * levelPriceStep : 0) + toppingTotal
@@ -116,9 +148,9 @@ export async function createOrder(payload) {
     const total = subtotal + fee
     const orderCode = `MB-${randomUUID().replaceAll('-', '').slice(0, 20).toUpperCase()}`
     const [result] = await connection.execute(
-      `INSERT INTO orders (order_code, table_number, customer_name, customer_phone, payment_method, status, subtotal, fee, total)
-       VALUES (?, ?, ?, ?, ?, 'menunggu', ?, ?, ?)`,
-      [orderCode, tableNumber, name, phone || null, paymentMethod, subtotal, fee, total]
+      `INSERT INTO orders (order_code, idempotency_key, table_number, customer_name, customer_phone, payment_method, status, subtotal, fee, total)
+       VALUES (?, ?, ?, ?, ?, ?, 'menunggu', ?, ?, ?)`,
+      [orderCode, idempotencyKey, tableNumber, name, phone || null, paymentMethod, subtotal, fee, total]
     )
 
     for (const item of orderItems) {
@@ -156,9 +188,14 @@ export async function createOrder(payload) {
       createdAt: new Date().toISOString(),
     }
     await connection.commit()
-    return response
+    return { order: response, created: true }
   } catch (error) {
     await connection.rollback()
+    // Dua request dengan key yang sama bisa lolos pengecekan awal bersamaan; yang kalah kena UNIQUE.
+    if (idempotencyKey && error.code === 'ER_DUP_ENTRY') {
+      const existingCode = await findOrderCodeByIdempotencyKey(pool, idempotencyKey)
+      if (existingCode) return { order: await readOrder(pool, existingCode), created: false }
+    }
     throw error
   } finally {
     connection.release()
