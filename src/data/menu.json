@@ -1,0 +1,615 @@
+{
+  "categories": [
+    {
+      "id": "varian-mie",
+      "name": "Varian Mie Bara",
+      "items": [
+        {
+          "id": "mie-bangladesh",
+          "name": "Mie Bangladesh",
+          "price": 13000,
+          "desc": "Bumbu mie instan, rempah khas Medan, dan chilli oil Warkop Mie Bara. Nyemek, medok, gurih, nagih.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ],
+          "bestSeller": true
+        },
+        {
+          "id": "mie-palestine",
+          "name": "Mie Palestine",
+          "price": 13000,
+          "desc": "Bumbu mie instan dan sambal Palestine yang super pedas, gurih, dan nendang.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "mie-pakistan",
+          "name": "Mie Pakistan",
+          "price": 10000,
+          "desc": "Bumbu mie instan dan sambal Pakistan, pedas pas dan sensasional.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "mie-singapore",
+          "name": "Mie Singapore",
+          "price": 10000,
+          "desc": "Mie berkuah creamy kental dan chilli oil, pedas dan gurih.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "mie-prindavan",
+          "name": "Mie Prindavan",
+          "price": 10000,
+          "desc": "Bumbu mie instan kuah, bumbu Prindavan, dan topping sayur segar.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "mie-china",
+          "name": "Mie China",
+          "price": 10000,
+          "desc": "Bumbu mie instan dan pedasnya chilli oil yang gurih dan nagih.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "mie-indonesia",
+          "name": "Mie Indonesia",
+          "price": 10000,
+          "desc": "Mie goreng khas Indonesia dengan kualitas rasa Nusantara.",
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "special",
+      "name": "Special Menu",
+      "items": [
+        {
+          "id": "bakmie-bara",
+          "name": "Bakmie Bara",
+          "price": 18000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "seblak-nusantara",
+          "name": "Seblak Nusantara",
+          "price": 16000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "nasi-bara-bere",
+          "name": "Nasi Bara-Bere",
+          "price": 10000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bara-nusantara",
+      "name": "Bara Nusantara",
+      "items": [
+        {
+          "id": "ayam-nusantara",
+          "name": "Ayam Nusantara",
+          "price": 13000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "lele-nusantara",
+          "name": "Lele Nusantara",
+          "price": 12000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "ayam-rempah",
+          "name": "Ayam Rempah Ketumbar",
+          "price": 17000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "lele-rempah",
+          "name": "Lele Rempah Ketumbar",
+          "price": 15000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "nasi",
+          "name": "Nasi",
+          "price": 4000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "sambal-penyet",
+          "name": "Sambal Penyet",
+          "price": 3000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "tempe-goreng",
+          "name": "Tempe Goreng",
+          "price": 2000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        },
+        {
+          "id": "tahu-goreng",
+          "name": "Tahu Goreng",
+          "price": 2000,
+          "levels": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "toppings": [
+            "telur",
+            "sosis"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "camilan",
+      "name": "Camilan Bara",
+      "items": [
+        {
+          "id": "siomay-ayam-sosis",
+          "name": "Siomay Ayam Sosis",
+          "price": 16000,
+          "check": true
+        },
+        {
+          "id": "siomay-ayam-udang",
+          "name": "Siomay Ayam Udang",
+          "price": 16000,
+          "check": true
+        },
+        {
+          "id": "tim-tahu",
+          "name": "Tim Tahu",
+          "price": 17000,
+          "check": true
+        },
+        {
+          "id": "lumpia-ayam-udang",
+          "name": "Lumpia Ayam Udang",
+          "price": 17000,
+          "check": true
+        },
+        {
+          "id": "cakwe-ayam-udang",
+          "name": "Cakwe Ayam Udang",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "bola-rambutan",
+          "name": "Bola Rambutan",
+          "price": 17000,
+          "check": true
+        },
+        {
+          "id": "siomay-au-spesial",
+          "name": "Siomay Ayam Udang Spesial",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "siomay-as-spesial",
+          "name": "Siomay Ayam Sosis Spesial",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "siomay-crabstik",
+          "name": "Siomay Crabstik Spesial",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "siomay-jamur",
+          "name": "Siomay Jamur Spesial",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "gyoza-spesial",
+          "name": "Gyoza Spesial",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "bola-udang-spesial",
+          "name": "Bola Udang Spesial",
+          "price": 15000,
+          "check": true
+        },
+        {
+          "id": "basreng",
+          "name": "Basreng Chilli Oil",
+          "price": 7000
+        },
+        {
+          "id": "cireng-co",
+          "name": "Cireng Chilli Oil",
+          "price": 9000
+        },
+        {
+          "id": "cibay-co",
+          "name": "Cibay Chilli Oil",
+          "price": 8000
+        },
+        {
+          "id": "cilok-moza",
+          "name": "Cilok Moza Chilli Oil",
+          "price": 7000
+        },
+        {
+          "id": "wonton-co",
+          "name": "Wonton Chilli Oil",
+          "price": 8000
+        },
+        {
+          "id": "mendoan",
+          "name": "Mendoan",
+          "price": 2000
+        },
+        {
+          "id": "cemal-cemil",
+          "name": "Cemal Cemil",
+          "price": 2500
+        },
+        {
+          "id": "pisang-cokelat",
+          "name": "Pisang Cokelat",
+          "price": 10000
+        },
+        {
+          "id": "risoles",
+          "name": "Risoles",
+          "price": 10000
+        },
+        {
+          "id": "cireng-salju",
+          "name": "Cireng Salju",
+          "price": 10000
+        },
+        {
+          "id": "french-fries",
+          "name": "French Fries",
+          "price": 9000
+        },
+        {
+          "id": "sosis-ceria",
+          "name": "Sosis Ceria",
+          "price": 9000
+        }
+      ]
+    },
+    {
+      "id": "signature-drink",
+      "name": "Signature Drink",
+      "items": [
+        {
+          "id": "vanilla-latte",
+          "name": "Vanilla Latte",
+          "price": 15000,
+          "cold": true
+        },
+        {
+          "id": "kopi-susu-aren",
+          "name": "Kopi Susu Gula Aren",
+          "price": 14000,
+          "cold": true
+        },
+        {
+          "id": "lychee-tea",
+          "name": "Lychee Tea",
+          "price": 13000,
+          "cold": true
+        },
+        {
+          "id": "lychee-ice",
+          "name": "Lychee Ice",
+          "price": 12000,
+          "cold": true
+        },
+        {
+          "id": "teh-tarik",
+          "name": "Teh Tarik",
+          "price": 12000,
+          "cold": true
+        },
+        {
+          "id": "coklat-milkshake",
+          "name": "Coklat Milkshake",
+          "price": 12000,
+          "cold": true
+        },
+        {
+          "id": "choco-drink",
+          "name": "Choco Drink",
+          "price": 9000,
+          "cold": true
+        }
+      ]
+    },
+    {
+      "id": "all-variant-drink",
+      "name": "All Variant Drink",
+      "items": [
+        {
+          "id": "teh",
+          "name": "Teh",
+          "price": 5000
+        },
+        {
+          "id": "milo",
+          "name": "Milo",
+          "price": 7000
+        },
+        {
+          "id": "chocolatos-coklat",
+          "name": "Chocolatos Coklat",
+          "price": 7000
+        },
+        {
+          "id": "chocolatos-matcha",
+          "name": "Chocolatos Matcha",
+          "price": 7000
+        },
+        {
+          "id": "beng-beng",
+          "name": "Drink Beng-Beng",
+          "price": 7000
+        },
+        {
+          "id": "gd-cappucino",
+          "name": "Good Day Cappucino",
+          "price": 7000
+        },
+        {
+          "id": "gd-freeze",
+          "name": "Good Day Freeze",
+          "price": 7000
+        },
+        {
+          "id": "josua",
+          "name": "Josua",
+          "price": 7000,
+          "check": true
+        },
+        {
+          "id": "extra-joss",
+          "name": "Extra Joss",
+          "price": 6000,
+          "check": true
+        },
+        {
+          "id": "nutrisari-jeruk",
+          "name": "Nutri Sari Jeruk",
+          "price": 6000,
+          "check": true
+        },
+        {
+          "id": "nutrisari-milky",
+          "name": "Nutri Sari Milky Orange",
+          "price": 6000,
+          "check": true
+        },
+        {
+          "id": "kopi-hitam",
+          "name": "Kopi Hitam",
+          "price": 5000
+        },
+        {
+          "id": "kopi-susu",
+          "name": "Kopi Susu",
+          "price": 7000
+        },
+        {
+          "id": "es-kopi-susu",
+          "name": "Es Kopi Susu",
+          "price": 9000
+        },
+        {
+          "id": "kopi-jahe",
+          "name": "Kopi Jahe",
+          "price": 6000
+        },
+        {
+          "id": "jahe-susu",
+          "name": "Jahe Susu",
+          "price": 6000
+        },
+        {
+          "id": "wedang-jahe",
+          "name": "Wedang Jahe",
+          "price": 5000
+        },
+        {
+          "id": "dancow",
+          "name": "Dancow (Putih/Coklat)",
+          "price": 8000
+        },
+        {
+          "id": "energen",
+          "name": "Energen (Vanilla/Coklat)",
+          "price": 7000
+        },
+        {
+          "id": "susu",
+          "name": "Susu (Putih/Coklat)",
+          "price": 5000
+        },
+        {
+          "id": "luwak-white",
+          "name": "Luwak White Coffee",
+          "price": 7000
+        }
+      ]
+    }
+  ],
+  "toppings": [
+    {
+      "id": "telur",
+      "name": "Telur (rebus/goreng)",
+      "price": 3500
+    },
+    {
+      "id": "sosis",
+      "name": "Sosis",
+      "price": 3000
+    }
+  ],
+  "levelPriceStep": 0,
+  "otherFee": 0
+}

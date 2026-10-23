@@ -1,0 +1,20 @@
+{
+  "name": "mie-bara-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "db:seed": "node --env-file-if-exists=.env src/scripts/seed.js",
+    "db:food-options": "node --env-file-if-exists=.env src/scripts/sync-food-options.js",
+    "db:note-only": "node --env-file-if-exists=.env src/scripts/note-only-categories.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "mysql2": "^3.14.0"
+  }
+}
