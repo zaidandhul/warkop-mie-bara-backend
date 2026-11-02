@@ -1,10 +1,13 @@
-// Nomor meja: trim, hanya angka, nol di depan dibuang ("09" -> "9"), 1–99.
+// Jumlah meja di warung (meja 1..TABLE_COUNT). Dikirim ke frontend lewat GET /api/menu (tableCount).
+export const TABLE_COUNT = Math.min(Math.max(Number.parseInt(process.env.TABLE_COUNT ?? '10', 10) || 10, 1), 99)
+
+// Nomor meja: trim, hanya angka, nol di depan dibuang ("09" -> "9"), 1–TABLE_COUNT.
 // Mengembalikan string ternormalisasi atau null jika tidak valid.
 export function normalizeTableNumber(value) {
   const text = String(value ?? '').trim()
   if (!/^\d{1,4}$/.test(text)) return null
   const number = Number(text)
-  return number >= 1 && number <= 99 ? String(number) : null
+  return number >= 1 && number <= TABLE_COUNT ? String(number) : null
 }
 
 // No. HP Indonesia: buang spasi/tanda baca, +62/62 -> 0, lalu harus 08xx dengan total 10–13 digit.

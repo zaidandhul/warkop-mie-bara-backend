@@ -2,7 +2,7 @@
 //   npm run db:test:setup   (memakai .env lalu .env.test, jadi MYSQL_DATABASE = kopi_miebara_test)
 //
 // Langkah: hapus & buat ulang database uji, jalankan schema.sql (sudah memuat hasil migrasi
-// 001–004, jadi file migrasi tidak dijalankan lagi), seed menu, lalu kosongkan opsi kategori
+// 001–006, jadi file migrasi tidak dijalankan lagi), seed menu, lalu kosongkan opsi kategori
 // minuman/camilan seperti di database utama. Menolak jalan jika nama database tidak berakhiran _test.
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
@@ -45,24 +45,30 @@ try {
   runScript('./seed.js')
   runScript('./note-only-categories.js')
 
-  // Pastikan strukturnya setara dengan database utama setelah migrasi 001–004.
+  // Pastikan strukturnya setara dengan database utama setelah migrasi 001–006.
   const [[checks]] = await connection.query(
     `SELECT
        (SELECT COUNT(*) FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'idempotency_key') AS idempotencyKey,
        (SELECT COUNT(*) FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'staff_users' AND COLUMN_NAME = 'role') AS staffRole,
+       (SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'paid_at') AS paidAt,
+       (SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'source') AS source,
        (SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ?) AS foreignKeys,
        (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
          WHERE TABLE_SCHEMA = ? AND CONSTRAINT_TYPE = 'CHECK' AND CONSTRAINT_NAME LIKE 'chk\\_%') AS namedChecks,
        (SELECT COUNT(*) FROM \`${database}\`.menu_items) AS menuItems`,
-    [database, database, database, database]
+    [database, database, database, database, database, database]
   )
   const problems = []
   if (checks.idempotencyKey !== 1) problems.push('kolom orders.idempotency_key tidak ada')
   if (checks.staffRole !== 0) problems.push('kolom staff_users.role masih ada')
-  if (checks.foreignKeys < 3) problems.push(`foreign key kurang (${checks.foreignKeys}/3)`)
-  if (checks.namedChecks < 5) problems.push(`CHECK bernama kurang (${checks.namedChecks}/5)`)
+  if (checks.paidAt !== 1) problems.push('kolom orders.paid_at tidak ada')
+  if (checks.source !== 1) problems.push('kolom orders.source tidak ada')
+  if (checks.foreignKeys < 5) problems.push(`foreign key kurang (${checks.foreignKeys}/5)`)
+  if (checks.namedChecks < 6) problems.push(`CHECK bernama kurang (${checks.namedChecks}/6)`)
   if (!checks.menuItems) problems.push('menu kosong')
   if (problems.length) throw new Error(`Struktur database uji tidak sesuai: ${problems.join('; ')}.`)
 

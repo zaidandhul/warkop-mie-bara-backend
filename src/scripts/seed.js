@@ -1,9 +1,16 @@
+// Upsert katalog dari menu.json.
+//   npm run db:seed               menu baru masuk; harga & status tersedia/habis menu lama tidak diubah
+//   npm run db:seed -- --force    harga & is_active menu lama juga ditimpa dari menu.json
+// Harga dan status tersedia diubah staf lewat dashboard, jadi secara default seed tidak menimpanya.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { parseArgs } from 'node:util'
 import { pool } from '../db.js'
 
+const { values } = parseArgs({ options: { force: { type: 'boolean', default: false } } })
 const catalogUrl = new URL('../data/menu.json', import.meta.url)
 const catalog = JSON.parse(await readFile(fileURLToPath(catalogUrl), 'utf8'))
+const operationalUpdates = values.force ? 'price = VALUES(price), is_active = TRUE,' : ''
 
 try {
   const connection = await pool.getConnection()
@@ -31,10 +38,10 @@ try {
              levels_json, options_json, allowed_toppings_json, is_active, sort_order)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?)
            ON DUPLICATE KEY UPDATE category_id = VALUES(category_id), name = VALUES(name),
-             description = VALUES(description), price = VALUES(price), best_seller = VALUES(best_seller),
+             description = VALUES(description), ${operationalUpdates} best_seller = VALUES(best_seller),
              cold = VALUES(cold), needs_price_check = VALUES(needs_price_check),
              levels_json = VALUES(levels_json), options_json = VALUES(options_json),
-             allowed_toppings_json = VALUES(allowed_toppings_json), is_active = TRUE, sort_order = VALUES(sort_order)`,
+             allowed_toppings_json = VALUES(allowed_toppings_json), sort_order = VALUES(sort_order)`,
           [item.id, category.id, item.name, item.desc ?? null, item.price, Boolean(item.bestSeller), Boolean(item.cold),
             Boolean(item.check), item.levels ? JSON.stringify(item.levels) : null,
             item.options ? JSON.stringify(item.options) : null,
@@ -49,7 +56,9 @@ try {
       )
     }
     await connection.commit()
-    console.log('Katalog menu dan pengaturan berhasil dimasukkan ke MySQL.')
+    console.log(values.force
+      ? 'Katalog menu dan pengaturan berhasil dimasukkan ke MySQL (harga & status tersedia ikut ditimpa).'
+      : 'Katalog menu dan pengaturan berhasil dimasukkan ke MySQL (harga & status tersedia menu lama tidak diubah).')
   } catch (error) {
     await connection.rollback()
     throw error
