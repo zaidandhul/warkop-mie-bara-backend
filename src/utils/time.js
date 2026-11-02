@@ -6,6 +6,12 @@ export function todayWib(now = new Date()) {
   return new Date(now.getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10)
 }
 
+// Date (UTC) -> { date: 'YYYY-MM-DD', hour: 0–23 } menurut jam WIB.
+export function wibDateHour(value) {
+  const shifted = new Date(new Date(value).getTime() + WIB_OFFSET_MS)
+  return { date: shifted.toISOString().slice(0, 10), hour: shifted.getUTCHours() }
+}
+
 // 'YYYY-MM-DD' (tanggal WIB) -> { start, end } sebagai Date UTC, rentang [start, end).
 // Mengembalikan null jika format atau tanggalnya tidak valid.
 export function wibDayRange(date) {

@@ -1,5 +1,6 @@
 import { pool } from '../db.js'
 import { jsonArray } from '../utils/json.js'
+import { TABLE_COUNT } from '../utils/validation.js'
 
 export async function getMenu() {
   const [categories] = await pool.execute('SELECT id, name FROM categories ORDER BY sort_order, name')
@@ -32,5 +33,6 @@ export async function getMenu() {
     toppings,
     fee: settingMap.other_fee ?? 0,
     levelPriceStep: settingMap.level_price_step ?? 0,
+    tableCount: TABLE_COUNT,
   }
 }

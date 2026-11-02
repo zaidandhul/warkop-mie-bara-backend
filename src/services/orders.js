@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { pool } from '../db.js'
 import { jsonArray } from '../utils/json.js'
-import { isUuid, normalizePhone, normalizeTableNumber } from '../utils/validation.js'
+import { TABLE_COUNT, isUuid, normalizePhone, normalizeTableNumber } from '../utils/validation.js'
+
+// Metode bayar di kasir saat pesanan ditandai lunas (kolom orders.paid_method).
+export const PAID_METHODS = ['tunai', 'qris_manual']
 
 function invalid(message) {
   return Object.assign(new Error(message), { statusCode: 400 })
@@ -15,11 +18,12 @@ async function findOrderCodeByIdempotencyKey(connection, idempotencyKey) {
 async function readOrder(connection, orderCode) {
   const [orders] = await connection.execute(
     `SELECT order_code AS id, status, table_number AS tableNumber,
-            payment_method AS paymentMethod, subtotal, fee, total, created_at AS createdAt
+            payment_method AS paymentMethod, paid_at IS NOT NULL AS paid, subtotal, fee, total, created_at AS createdAt
        FROM orders WHERE order_code = ?`, [orderCode]
   )
   if (!orders.length) return null
   const order = orders[0]
+  order.paid = Boolean(order.paid)
   const [items] = await connection.execute(
     `SELECT ${ORDER_ITEM_COLUMNS}
        FROM order_items WHERE order_id = (SELECT id FROM orders WHERE order_code = ?) ORDER BY id`, [orderCode]
@@ -52,7 +56,12 @@ export function toOrderItem(item) {
 
 // Mengembalikan { order, created }. created = false berarti Idempotency-Key yang sama sudah pernah
 // dipakai dan pesanan lama dikembalikan tanpa membuat pesanan baru.
-export async function createOrder(payload, { idempotencyKey = null } = {}) {
+// staffId diisi untuk pesanan yang diinput kasir dari dashboard (source 'kasir'); hanya pesanan kasir
+// yang boleh langsung lunas lewat paidMethod.
+export async function createOrder(payload, { idempotencyKey = null, staffId = null, paidMethod = null } = {}) {
+  if (paidMethod !== null && (!staffId || !PAID_METHODS.includes(paidMethod))) {
+    throw invalid('Status lunas harus "tunai", "qris_manual", atau kosong (belum bayar).')
+  }
   if (idempotencyKey !== null && !isUuid(idempotencyKey)) {
     throw invalid('Kunci pesanan (Idempotency-Key) tidak valid. Muat ulang halaman pembayaran lalu coba lagi.')
   }
@@ -67,16 +76,20 @@ export async function createOrder(payload, { idempotencyKey = null } = {}) {
   if (payload.items.length > 50) throw invalid('Pesanan terlalu banyak item (maksimal 50 baris).')
 
   const tableNumber = normalizeTableNumber(payload.tableNumber)
-  if (!tableNumber) throw invalid('Nomor meja tidak valid. Gunakan angka 1 sampai 99.')
+  if (!tableNumber) throw invalid(`Nomor meja tidak valid. Gunakan angka 1 sampai ${TABLE_COUNT}.`)
   const customer = payload.customer && typeof payload.customer === 'object' ? payload.customer : {}
-  const name = typeof customer.name === 'string' ? customer.name.trim() : ''
+  // Kasir boleh tidak menanyakan nama; pesanannya dinamai sesuai meja.
+  const name = (typeof customer.name === 'string' ? customer.name.trim() : '') || (staffId ? `Meja ${tableNumber}` : '')
   if (name.length < 2 || name.length > 100) throw invalid('Nama pemesan wajib diisi, 2 sampai 100 karakter.')
   const phone = normalizePhone(typeof customer.phone === 'string' ? customer.phone : '')
   if (phone === null) {
     throw invalid('Nomor HP tidak valid. Gunakan nomor HP Indonesia yang diawali 08, +62, atau 62 (10–13 digit).')
   }
-  const paymentMethod = payload.paymentMethod
-  if (!['online', 'cashier'].includes(paymentMethod)) throw invalid('Metode pembayaran tidak valid.')
+  // Hanya bayar di kasir. Tanpa payment gateway, pesanan 'online' akan terlihat seperti sudah dibayar
+  // padahal belum; nilai 'online' di kolom hanya tersisa untuk data lama.
+  const paymentMethod = staffId ? 'cashier' : payload.paymentMethod
+  if (paymentMethod === 'online') throw invalid('Pembayaran online belum tersedia. Silakan bayar di kasir.')
+  if (paymentMethod !== 'cashier') throw invalid('Metode pembayaran tidak valid.')
 
   const connection = await pool.getConnection()
   try {
@@ -148,9 +161,12 @@ export async function createOrder(payload, { idempotencyKey = null } = {}) {
     const total = subtotal + fee
     const orderCode = `MB-${randomUUID().replaceAll('-', '').slice(0, 20).toUpperCase()}`
     const [result] = await connection.execute(
-      `INSERT INTO orders (order_code, idempotency_key, table_number, customer_name, customer_phone, payment_method, status, subtotal, fee, total)
-       VALUES (?, ?, ?, ?, ?, ?, 'menunggu', ?, ?, ?)`,
-      [orderCode, idempotencyKey, tableNumber, name, phone || null, paymentMethod, subtotal, fee, total]
+      `INSERT INTO orders (order_code, idempotency_key, table_number, customer_name, customer_phone, payment_method,
+          source, created_by_staff_id, status, subtotal, fee, total, paid_at, paid_method, paid_by_staff_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'menunggu', ?, ?, ?, IF(? IS NULL, NULL, CURRENT_TIMESTAMP), ?, ?)`,
+      [orderCode, idempotencyKey, tableNumber, name, phone || null, paymentMethod,
+        staffId ? 'kasir' : 'pelanggan', staffId, subtotal, fee, total,
+        paidMethod, paidMethod, paidMethod ? staffId : null]
     )
 
     for (const item of orderItems) {
@@ -168,6 +184,7 @@ export async function createOrder(payload, { idempotencyKey = null } = {}) {
       status: 'menunggu',
       tableNumber,
       paymentMethod,
+      paid: paidMethod !== null,
       items: orderItems.map((item) => ({
         itemId: item.menuItem.id,
         name: item.menuItem.name,

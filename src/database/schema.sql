@@ -43,6 +43,16 @@ CREATE TABLE IF NOT EXISTS app_settings (
   setting_value INT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS staff_users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) NOT NULL,
+  password_hash VARCHAR(100) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  last_login_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_staff_users_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE IF NOT EXISTS orders (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_code VARCHAR(24) NOT NULL UNIQUE,
@@ -51,13 +61,23 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_name VARCHAR(100) NOT NULL,
   customer_phone VARCHAR(30) NULL,
   payment_method ENUM('online', 'cashier') NOT NULL,
+  source ENUM('pelanggan', 'kasir') NOT NULL DEFAULT 'pelanggan',
+  created_by_staff_id INT UNSIGNED NULL DEFAULT NULL,
   status ENUM('menunggu', 'diproses', 'siap', 'selesai', 'dibatalkan') NOT NULL DEFAULT 'menunggu',
   subtotal INT UNSIGNED NOT NULL,
   fee INT UNSIGNED NOT NULL DEFAULT 0,
   total INT UNSIGNED NOT NULL,
+  paid_at TIMESTAMP NULL DEFAULT NULL,
+  paid_method ENUM('tunai', 'qris_manual') NULL DEFAULT NULL,
+  paid_by_staff_id INT UNSIGNED NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT chk_orders_total CHECK (total = subtotal + fee),
+  CONSTRAINT chk_orders_paid CHECK ((paid_at IS NULL) = (paid_method IS NULL)),
+  CONSTRAINT fk_orders_paid_by FOREIGN KEY (paid_by_staff_id)
+    REFERENCES staff_users(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  CONSTRAINT fk_orders_created_by FOREIGN KEY (created_by_staff_id)
+    REFERENCES staff_users(id) ON UPDATE CASCADE ON DELETE SET NULL,
   UNIQUE KEY uq_orders_idempotency_key (idempotency_key),
   INDEX idx_orders_status_created (status, created_at),
   INDEX idx_orders_table_created (table_number, created_at)
@@ -82,14 +102,4 @@ CREATE TABLE IF NOT EXISTS order_items (
   CONSTRAINT chk_order_items_qty CHECK (qty > 0),
   CONSTRAINT chk_order_items_line_total CHECK (line_total = unit_price * qty),
   INDEX idx_order_items_order (order_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE IF NOT EXISTS staff_users (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  username VARCHAR(50) NOT NULL,
-  password_hash VARCHAR(100) NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  last_login_at TIMESTAMP NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_staff_users_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
