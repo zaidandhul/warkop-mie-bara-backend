@@ -8,8 +8,10 @@ import { cookieOptions, requireStaff } from './middleware/auth.js'
 import { rateLimit } from './middleware/rateLimit.js'
 import { securityHeaders } from './middleware/securityHeaders.js'
 import { pool } from './db.js'
+import { assertProductionEnv } from './config/env.js'
 
-jwtSecret() // Gagal start lebih awal jika JWT_SECRET belum diisi.
+assertProductionEnv() // NODE_ENV=production: tolak start bila JWT_SECRET/MYSQL_* tidak aman.
+jwtSecret() // Semua mode: gagal start lebih awal jika JWT_SECRET belum diisi.
 
 const app = express()
 app.disable('x-powered-by')
