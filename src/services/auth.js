@@ -8,6 +8,7 @@ const SESSION_HOURS = 12
 const BCRYPT_ROUNDS = 12
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MS = 15 * 60 * 1000
+const JWT_ALGORITHM = 'HS256'
 // Hash asal untuk username yang tidak ada, supaya waktu respons sama dengan password salah.
 const DUMMY_HASH = bcrypt.hashSync('bukan-password-siapa-pun', BCRYPT_ROUNDS)
 
@@ -55,20 +56,25 @@ export async function login({ username, password }, ip) {
   loginLimiter.reset(key)
   await pool.execute('UPDATE staff_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [staff.id])
 
-  const token = jwt.sign({ sub: String(staff.id) }, jwtSecret(), { expiresIn: `${SESSION_HOURS}h` })
+  const token = jwt.sign({ sub: String(staff.id) }, jwtSecret(), { algorithm: JWT_ALGORITHM, expiresIn: `${SESSION_HOURS}h` })
   return { token, maxAgeMs: SESSION_HOURS * 60 * 60 * 1000, staff: publicStaff(staff) }
 }
 
 // Token -> staf aktif. Status aktif selalu dibaca ulang dari database, jadi menonaktifkan
 // akun langsung berlaku tanpa menunggu token kedaluwarsa. Semua staf adalah admin (tanpa role).
-export async function staffFromToken(token) {
+// Payload token yang sah, atau error 401. Algoritma dikunci ke HS256: token dengan algoritma lain
+// (termasuk "none") ditolak walau ditandatangani dengan rahasia yang sama.
+export function verifyStaffToken(token) {
   if (!token) throw authError('Silakan login terlebih dahulu.')
-  let payload
   try {
-    payload = jwt.verify(token, jwtSecret())
+    return jwt.verify(token, jwtSecret(), { algorithms: [JWT_ALGORITHM] })
   } catch {
     throw authError('Sesi berakhir. Silakan login kembali.')
   }
+}
+
+export async function staffFromToken(token) {
+  const payload = verifyStaffToken(token)
   const [rows] = await pool.execute(
     'SELECT id, username, is_active FROM staff_users WHERE id = ?', [Number(payload.sub)]
   )
