@@ -1,13 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { pool } from '../db.js'
 import { jsonArray } from '../utils/json.js'
+import { todayWib, wibDayRange } from '../utils/time.js'
 import { TABLE_COUNT, isUuid, normalizePhone, normalizeTableNumber } from '../utils/validation.js'
 
 // Metode bayar di kasir saat pesanan ditandai lunas (kolom orders.paid_method).
 export const PAID_METHODS = ['tunai', 'qris_manual']
 
-function invalid(message) {
-  return Object.assign(new Error(message), { statusCode: 400 })
+// Maksimal pesanan pelanggan yang belum selesai/dibatalkan per meja (hari ini, WIB). 0 = tanpa batas.
+// Pesanan yang diinput kasir tidak dibatasi dan tidak ikut dihitung.
+const MAX_ACTIVE_ORDERS_PER_TABLE = Number(process.env.MAX_ACTIVE_ORDERS_PER_TABLE ?? 5)
+
+function invalid(message, statusCode = 400) {
+  return Object.assign(new Error(message), { statusCode })
 }
 
 async function findOrderCodeByIdempotencyKey(connection, idempotencyKey) {
@@ -98,6 +103,26 @@ export async function createOrder(payload, { idempotencyKey = null, staffId = nu
       "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('other_fee', 'level_price_step') FOR UPDATE"
     )
     const settingMap = Object.fromEntries(settings.map((row) => [row.setting_key, Number(row.setting_value)]))
+
+    // Kunci app_settings di atas membuat pembuatan pesanan berjalan bergiliran, jadi hitungan ini tidak
+    // bisa disalip pesanan lain untuk meja yang sama. Hanya hari ini: pesanan lama yang lupa ditutup
+    // tidak mengunci meja selamanya (kanban juga hanya menampilkan hari ini).
+    if (!staffId && MAX_ACTIVE_ORDERS_PER_TABLE > 0) {
+      const today = wibDayRange(todayWib())
+      const [[{ active }]] = await connection.execute(
+        `SELECT COUNT(*) AS active FROM orders
+          WHERE table_number = ? AND source = 'pelanggan' AND status NOT IN ('selesai', 'dibatalkan')
+            AND created_at >= ? AND created_at < ?
+          LOCK IN SHARE MODE`, [tableNumber, today.start, today.end]
+      )
+      if (active >= MAX_ACTIVE_ORDERS_PER_TABLE) {
+        throw invalid(
+          `Meja ${tableNumber} sudah punya ${active} pesanan yang belum selesai. Tunggu pesanan sebelumnya selesai atau hubungi kasir.`,
+          409
+        )
+      }
+    }
+
     const fee = settingMap.other_fee ?? 0
     const levelPriceStep = settingMap.level_price_step ?? 0
     const orderItems = []

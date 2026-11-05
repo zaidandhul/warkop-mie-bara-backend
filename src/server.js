@@ -21,10 +21,11 @@ const trustProxy = process.env.TRUST_PROXY ?? 'loopback'
 app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy === 'true' ? true : trustProxy === 'false' ? false : trustProxy)
 
 // Mencegah banjir pesanan palsu dari satu perangkat. Batasnya longgar karena pelanggan di WiFi
-// warung bisa berbagi satu IP publik (NAT) bila backend di VPS.
+// warung bisa berbagi satu IP publik (NAT) bila backend di VPS; spam ke satu meja sudah dibatasi
+// MAX_ACTIVE_ORDERS_PER_TABLE di createOrder.
 const orderRateLimit = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: Number(process.env.ORDER_RATE_LIMIT ?? 30),
+  max: Number(process.env.ORDER_RATE_LIMIT ?? 100),
   message: (minutes) => `Terlalu banyak pesanan dari perangkat ini. Coba lagi dalam ${minutes} menit atau hubungi kasir.`,
 })
 
@@ -41,9 +42,11 @@ app.use(express.json({ limit: '32kb' }))
 app.get('/api/health', async (_req, res, next) => {
   try {
     await pool.query('SELECT 1')
-    // testMode dipakai test E2E untuk memastikan tidak berjalan terhadap database utama.
-    const testMode = /_test$/.test(process.env.MYSQL_DATABASE ?? '')
-    res.json({ status: 'ok', database: 'connected', ...(testMode ? { testMode: true } : {}) })
+    // testMode dan testDatabase dipakai test E2E untuk memastikan tidak berjalan terhadap database
+    // utama. Nama database hanya dikirim dalam mode uji.
+    const databaseName = process.env.MYSQL_DATABASE ?? ''
+    const testMode = /_test$/.test(databaseName)
+    res.json({ status: 'ok', database: 'connected', ...(testMode ? { testMode: true, testDatabase: databaseName } : {}) })
   } catch (error) {
     next(error)
   }
