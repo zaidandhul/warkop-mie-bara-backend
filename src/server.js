@@ -42,9 +42,11 @@ app.use(express.json({ limit: '32kb' }))
 app.get('/api/health', async (_req, res, next) => {
   try {
     await pool.query('SELECT 1')
-    // testMode dipakai test E2E untuk memastikan tidak berjalan terhadap database utama.
-    const testMode = /_test$/.test(process.env.MYSQL_DATABASE ?? '')
-    res.json({ status: 'ok', database: 'connected', ...(testMode ? { testMode: true } : {}) })
+    // testMode dan testDatabase dipakai test E2E untuk memastikan tidak berjalan terhadap database
+    // utama. Nama database hanya dikirim dalam mode uji.
+    const databaseName = process.env.MYSQL_DATABASE ?? ''
+    const testMode = /_test$/.test(databaseName)
+    res.json({ status: 'ok', database: 'connected', ...(testMode ? { testMode: true, testDatabase: databaseName } : {}) })
   } catch (error) {
     next(error)
   }
