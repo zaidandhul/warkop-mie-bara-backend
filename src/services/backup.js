@@ -41,8 +41,19 @@ function runMysqldump(mysqldump, args, env, file) {
     const output = createWriteStream(file)
     child.stdout.pipe(output)
     child.stderr.on('data', (chunk) => stderr.push(chunk))
-    child.on('error', reject)
-    child.on('close', (code) => output.end(() => resolve({ code, stderr: Buffer.concat(stderr).toString('utf8') })))
+    // mysqldump tidak bisa dijalankan: tunggu stream file tertutup dulu, supaya file yang dihapus
+    // pemanggil tidak dibuat ulang oleh stream yang baru terbuka. Di Windows event 'close' (kode
+    // -4058) juga muncul; abaikan karena error spawn sudah ditangani.
+    let spawnFailed = false
+    child.on('error', (error) => {
+      spawnFailed = true
+      output.on('close', () => reject(error))
+      output.destroy()
+    })
+    child.on('close', (code) => {
+      if (spawnFailed) return
+      output.end(() => resolve({ code, stderr: Buffer.concat(stderr).toString('utf8') }))
+    })
   })
 }
 
