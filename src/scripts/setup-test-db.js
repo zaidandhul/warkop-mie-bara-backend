@@ -1,12 +1,12 @@
 // Menyiapkan database uji untuk test end-to-end (frontend/e2e).
 //   npm run db:test:setup   (memakai .env lalu .env.test, jadi MYSQL_DATABASE = kopi_miebara_test)
 //
-// Langkah: hapus & buat ulang database uji, jalankan schema.sql (sudah memuat hasil migrasi
-// 001–006, jadi file migrasi tidak dijalankan lagi), seed menu, lalu kosongkan opsi kategori
+// Langkah: hapus & buat ulang database uji lewat migration runner (database kosong -> schema.sql, semua
+// migrasi ditandai baseline di schema_migrations), seed menu, lalu kosongkan opsi kategori
 // minuman/camilan seperti di database utama. Menolak jalan jika nama database tidak berakhiran _test.
 import { spawnSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
 import mysql from 'mysql2/promise'
+import { listMigrationFiles, migrate } from '../database/migrator.js'
 
 const database = process.env.MYSQL_DATABASE
 if (!database || !/^[a-zA-Z0-9_]+_test$/.test(database)) {
@@ -14,11 +14,6 @@ if (!database || !/^[a-zA-Z0-9_]+_test$/.test(database)) {
   console.error('Jalankan lewat "npm run db:test:setup" supaya .env.test dipakai.')
   process.exit(1)
 }
-
-const schemaPath = new URL('../database/schema.sql', import.meta.url)
-// schema.sql menulis nama database utama secara tetap; ganti semuanya ke database uji.
-const schema = (await readFile(schemaPath, 'utf8')).replace(/\bkopi_miebara\b/g, database)
-if (/\bkopi_miebara\b/.test(schema)) throw new Error('schema.sql masih merujuk kopi_miebara.')
 
 const connection = await mysql.createConnection({
   host: process.env.MYSQL_HOST || '127.0.0.1',
@@ -39,13 +34,13 @@ function runScript(file) {
 try {
   console.log(`Membuat ulang database uji "${database}"…`)
   await connection.query(`DROP DATABASE IF EXISTS \`${database}\``)
-  await connection.query(schema)
+  await migrate({ database })
 
   console.log('Mengisi menu (seed)…')
   runScript('./seed.js')
   runScript('./note-only-categories.js')
 
-  // Pastikan strukturnya setara dengan database utama setelah migrasi 001–006.
+  // Pastikan strukturnya setara dengan database utama (semua migrasi).
   const [[checks]] = await connection.query(
     `SELECT
        (SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -59,7 +54,8 @@ try {
        (SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ?) AS foreignKeys,
        (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
          WHERE TABLE_SCHEMA = ? AND CONSTRAINT_TYPE = 'CHECK' AND CONSTRAINT_NAME LIKE 'chk\\_%') AS namedChecks,
-       (SELECT COUNT(*) FROM \`${database}\`.menu_items) AS menuItems`,
+       (SELECT COUNT(*) FROM \`${database}\`.menu_items) AS menuItems,
+       (SELECT COUNT(*) FROM \`${database}\`.schema_migrations) AS migrations`,
     [database, database, database, database, database, database]
   )
   const problems = []
@@ -67,9 +63,11 @@ try {
   if (checks.staffRole !== 0) problems.push('kolom staff_users.role masih ada')
   if (checks.paidAt !== 1) problems.push('kolom orders.paid_at tidak ada')
   if (checks.source !== 1) problems.push('kolom orders.source tidak ada')
-  if (checks.foreignKeys < 5) problems.push(`foreign key kurang (${checks.foreignKeys}/5)`)
+  if (checks.foreignKeys < 6) problems.push(`foreign key kurang (${checks.foreignKeys}/6)`)
   if (checks.namedChecks < 6) problems.push(`CHECK bernama kurang (${checks.namedChecks}/6)`)
   if (!checks.menuItems) problems.push('menu kosong')
+  const migrationFiles = (await listMigrationFiles()).length
+  if (checks.migrations !== migrationFiles) problems.push(`schema_migrations ${checks.migrations}/${migrationFiles}`)
   if (problems.length) throw new Error(`Struktur database uji tidak sesuai: ${problems.join('; ')}.`)
 
   console.log(`Database uji "${database}" siap (${checks.menuItems} menu). Buat akun admin uji dengan: npm run staff:create:test`)

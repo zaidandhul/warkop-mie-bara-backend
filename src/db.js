@@ -19,3 +19,19 @@ export const pool = mysql.createPool({
 pool.on('connection', (connection) => {
   connection.query("SET time_zone = '+00:00'")
 })
+
+// Jalankan fn(connection) dalam satu transaksi: commit bila sukses, rollback bila fn melempar error.
+export async function withTransaction(fn) {
+  const connection = await pool.getConnection()
+  try {
+    await connection.beginTransaction()
+    const result = await fn(connection)
+    await connection.commit()
+    return result
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}

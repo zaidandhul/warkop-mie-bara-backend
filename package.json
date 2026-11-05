@@ -9,6 +9,10 @@
   "scripts": {
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
     "start": "node --env-file-if-exists=.env src/server.js",
+    "db:migrate": "node --env-file-if-exists=.env src/scripts/migrate.js up",
+    "db:migrate:status": "node --env-file-if-exists=.env src/scripts/migrate.js status",
+    "db:backup": "node --env-file-if-exists=.env src/scripts/backup.js",
+    "db:retention": "node --env-file-if-exists=.env src/scripts/retention.js",
     "db:seed": "node --env-file-if-exists=.env src/scripts/seed.js",
     "db:food-options": "node --env-file-if-exists=.env src/scripts/sync-food-options.js",
     "db:note-only": "node --env-file-if-exists=.env src/scripts/note-only-categories.js",
@@ -16,7 +20,8 @@
     "dev:test": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.test src/server.js",
     "db:test:setup": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/setup-test-db.js",
     "staff:create:test": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/create-staff.js",
-    "test": "node --test test/unit"
+    "test": "node --test test/unit",
+    "test:integration": "node --env-file-if-exists=.env --env-file-if-exists=.env.test --test --test-concurrency=1 test/integration"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
