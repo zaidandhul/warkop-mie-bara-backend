@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { pool } from '../db.js'
+import { createLoginLimiter } from './loginLimiter.js'
 
 export const STAFF_COOKIE = 'mb_staff'
 const SESSION_HOURS = 12
@@ -24,30 +25,13 @@ export function hashPassword(password) {
   return bcrypt.hash(password, BCRYPT_ROUNDS)
 }
 
-// Batas percobaan login gagal per IP+username, disimpan di memori (hilang saat server restart).
-const failedAttempts = new Map()
+// Batas percobaan login gagal per IP+username, di memori (lihat loginLimiter.js). Entri kedaluwarsa
+// disapu tiap menit; unref() supaya timer ini tidak menahan proses tetap hidup.
+const loginLimiter = createLoginLimiter({ maxAttempts: MAX_FAILED_ATTEMPTS, windowMs: LOCKOUT_MS })
+setInterval(() => loginLimiter.sweep(), 60_000).unref()
 
 function attemptKey(ip, username) {
   return `${ip}|${username.toLowerCase()}`
-}
-
-function checkLockout(key) {
-  const entry = failedAttempts.get(key)
-  if (!entry) return
-  if (Date.now() - entry.firstAt > LOCKOUT_MS) {
-    failedAttempts.delete(key)
-    return
-  }
-  if (entry.count >= MAX_FAILED_ATTEMPTS) {
-    const minutes = Math.ceil((entry.firstAt + LOCKOUT_MS - Date.now()) / 60000)
-    throw authError(`Terlalu banyak percobaan login. Coba lagi dalam ${minutes} menit.`, 429)
-  }
-}
-
-function recordFailure(key) {
-  const entry = failedAttempts.get(key)
-  if (entry && Date.now() - entry.firstAt <= LOCKOUT_MS) entry.count += 1
-  else failedAttempts.set(key, { count: 1, firstAt: Date.now() })
 }
 
 export async function login({ username, password }, ip) {
@@ -56,7 +40,8 @@ export async function login({ username, password }, ip) {
   }
   const cleanUsername = username.trim()
   const key = attemptKey(ip, cleanUsername)
-  checkLockout(key)
+  const lockout = loginLimiter.check(key)
+  if (lockout) throw authError(`Terlalu banyak percobaan login. Coba lagi dalam ${lockout.minutesLeft} menit.`, 429)
 
   const [rows] = await pool.execute(
     'SELECT id, username, password_hash, is_active FROM staff_users WHERE username = ?', [cleanUsername]
@@ -64,10 +49,10 @@ export async function login({ username, password }, ip) {
   const staff = rows[0]
   const valid = await bcrypt.compare(password, staff?.password_hash ?? DUMMY_HASH)
   if (!staff || !valid || !staff.is_active) {
-    recordFailure(key)
+    loginLimiter.recordFailure(key)
     throw authError('Username atau password salah.')
   }
-  failedAttempts.delete(key)
+  loginLimiter.reset(key)
   await pool.execute('UPDATE staff_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [staff.id])
 
   const token = jwt.sign({ sub: String(staff.id) }, jwtSecret(), { expiresIn: `${SESSION_HOURS}h` })
