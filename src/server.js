@@ -6,11 +6,13 @@ import { STAFF_COOKIE, jwtSecret, login } from './services/auth.js'
 import { salesReport } from './services/reports.js'
 import { cookieOptions, requireStaff } from './middleware/auth.js'
 import { rateLimit } from './middleware/rateLimit.js'
+import { securityHeaders } from './middleware/securityHeaders.js'
 import { pool } from './db.js'
 
 jwtSecret() // Gagal start lebih awal jika JWT_SECRET belum diisi.
 
 const app = express()
+app.disable('x-powered-by')
 const port = Number(process.env.PORT || 3000)
 const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 
@@ -29,6 +31,7 @@ const orderRateLimit = rateLimit({
   message: (minutes) => `Terlalu banyak pesanan dari perangkat ini. Coba lagi dalam ${minutes} menit atau hubungi kasir.`,
 })
 
+app.use(securityHeaders)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', allowedOrigin)
   res.header('Access-Control-Allow-Credentials', 'true')
