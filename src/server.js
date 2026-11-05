@@ -4,6 +4,7 @@ import { getMenu } from './services/menu.js'
 import { listMenu, listOrders, updateMenuItem, updateOrderPayment, updateOrderStatus } from './services/admin.js'
 import { STAFF_COOKIE, jwtSecret, login } from './services/auth.js'
 import { salesReport } from './services/reports.js'
+import { recentAudit } from './services/audit.js'
 import { cookieOptions, requireStaff } from './middleware/auth.js'
 import { rateLimit } from './middleware/rateLimit.js'
 import { securityHeaders } from './middleware/securityHeaders.js'
@@ -123,7 +124,7 @@ admin.post('/orders', async (req, res) => {
   res.status(created ? 201 : 200).json(order)
 })
 admin.patch('/orders/:id/status', async (req, res) => {
-  res.json(await updateOrderStatus(req.params.id, req.body?.status))
+  res.json(await updateOrderStatus(req.params.id, req.body?.status, req.staff.id))
 })
 admin.patch('/orders/:id/payment', async (req, res) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {}
@@ -132,8 +133,10 @@ admin.patch('/orders/:id/payment', async (req, res) => {
 })
 admin.get('/menu', async (_req, res) => res.json({ items: await listMenu() }))
 admin.patch('/menu/:id', async (req, res) => {
-  res.json(await updateMenuItem(req.params.id, req.body))
+  res.json(await updateMenuItem(req.params.id, req.body, req.staff.id))
 })
+// Perubahan terbaru oleh staf (status/bayar pesanan, harga/ketersediaan menu). ?limit=1..200 (default 50).
+admin.get('/audit-log', async (req, res) => res.json({ entries: await recentAudit({ limit: req.query.limit }) }))
 admin.get('/reports/sales', async (req, res) => {
   res.json(await salesReport({ from: req.query.from || undefined, to: req.query.to || undefined }))
 })

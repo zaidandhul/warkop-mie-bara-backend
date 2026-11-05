@@ -63,7 +63,7 @@ try {
   if (checks.staffRole !== 0) problems.push('kolom staff_users.role masih ada')
   if (checks.paidAt !== 1) problems.push('kolom orders.paid_at tidak ada')
   if (checks.source !== 1) problems.push('kolom orders.source tidak ada')
-  if (checks.foreignKeys < 5) problems.push(`foreign key kurang (${checks.foreignKeys}/5)`)
+  if (checks.foreignKeys < 6) problems.push(`foreign key kurang (${checks.foreignKeys}/6)`)
   if (checks.namedChecks < 6) problems.push(`CHECK bernama kurang (${checks.namedChecks}/6)`)
   if (!checks.menuItems) problems.push('menu kosong')
   const migrationFiles = (await listMigrationFiles()).length
