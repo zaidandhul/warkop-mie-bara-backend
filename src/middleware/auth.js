@@ -24,6 +24,12 @@ export function cookieOptions(maxAgeMs) {
   }
 }
 
+// Setelah requireStaff: 403 kecuali staf admin (untuk kelola akun staf).
+export function requireAdmin(req, res, next) {
+  if (!req.staff?.isAdmin) return res.status(403).json({ error: 'Hanya admin yang boleh mengelola akun staf.' })
+  next()
+}
+
 // Memasang req.staff; 401 jika belum login, sesi kedaluwarsa, atau akun nonaktif.
 export async function requireStaff(req, res, next) {
   try {

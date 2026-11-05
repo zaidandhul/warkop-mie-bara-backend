@@ -2,10 +2,11 @@ import express from 'express'
 import { createOrder, getOrder } from './services/orders.js'
 import { getMenu } from './services/menu.js'
 import { listMenu, listOrders, updateMenuItem, updateOrderPayment, updateOrderStatus } from './services/admin.js'
-import { STAFF_COOKIE, jwtSecret, login } from './services/auth.js'
+import { STAFF_COOKIE, issueToken, jwtSecret, login } from './services/auth.js'
+import { changeOwnPassword, createStaff, listStaff, resetStaffPassword, updateStaff } from './services/staff.js'
 import { salesReport } from './services/reports.js'
 import { recentAudit } from './services/audit.js'
-import { cookieOptions, requireStaff } from './middleware/auth.js'
+import { cookieOptions, requireAdmin, requireStaff } from './middleware/auth.js'
 import { rateLimit } from './middleware/rateLimit.js'
 import { securityHeaders } from './middleware/securityHeaders.js'
 import { requestLog } from './middleware/requestLog.js'
@@ -111,6 +112,22 @@ admin.use((_req, res, next) => {
   next()
 })
 admin.get('/me', (req, res) => res.json({ staff: req.staff }))
+// Ganti password sendiri (semua staf). Sesi lain berakhir; sesi ini mendapat cookie baru.
+admin.post('/me/password', async (req, res) => {
+  await changeOwnPassword(req.staff.id, req.body ?? {})
+  const [[row]] = await pool.execute('SELECT id, session_version FROM staff_users WHERE id = ?', [req.staff.id])
+  const { token, maxAgeMs } = issueToken(row)
+  res.cookie(STAFF_COOKIE, token, cookieOptions(maxAgeMs))
+  res.status(204).end()
+})
+// Kelola akun staf: khusus admin.
+admin.get('/staff', requireAdmin, async (_req, res) => res.json({ staff: await listStaff() }))
+admin.post('/staff', requireAdmin, async (req, res) => res.status(201).json(await createStaff(req.body ?? {})))
+admin.patch('/staff/:id', requireAdmin, async (req, res) => res.json(await updateStaff(req.params.id, req.body, req.staff.id)))
+admin.post('/staff/:id/password', requireAdmin, async (req, res) => {
+  await resetStaffPassword(req.params.id, req.body?.password)
+  res.status(204).end()
+})
 admin.get('/orders', async (req, res) => {
   res.json(await listOrders({ status: req.query.status || undefined, date: req.query.date || undefined }))
 })

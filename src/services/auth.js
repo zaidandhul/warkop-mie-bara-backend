@@ -26,6 +26,20 @@ export function hashPassword(password) {
   return bcrypt.hash(password, BCRYPT_ROUNDS)
 }
 
+export function verifyPassword(password, hash) {
+  return bcrypt.compare(password, hash)
+}
+
+// Token sesi: sub = id staf, v = session_version saat login. Mengganti/me-reset password menaikkan
+// session_version, sehingga token lama ditolak oleh staffFromToken.
+export function issueToken(staff) {
+  const token = jwt.sign(
+    { sub: String(staff.id), v: Number(staff.session_version ?? staff.sessionVersion ?? 0) },
+    jwtSecret(), { algorithm: JWT_ALGORITHM, expiresIn: `${SESSION_HOURS}h` }
+  )
+  return { token, maxAgeMs: SESSION_HOURS * 60 * 60 * 1000 }
+}
+
 // Batas percobaan login gagal per IP+username, di memori (lihat loginLimiter.js). Entri kedaluwarsa
 // disapu tiap menit; unref() supaya timer ini tidak menahan proses tetap hidup.
 const loginLimiter = createLoginLimiter({ maxAttempts: MAX_FAILED_ATTEMPTS, windowMs: LOCKOUT_MS })
@@ -45,7 +59,7 @@ export async function login({ username, password }, ip) {
   if (lockout) throw authError(`Terlalu banyak percobaan login. Coba lagi dalam ${lockout.minutesLeft} menit.`, 429)
 
   const [rows] = await pool.execute(
-    'SELECT id, username, password_hash, is_active FROM staff_users WHERE username = ?', [cleanUsername]
+    'SELECT id, username, password_hash, is_admin, is_active, session_version FROM staff_users WHERE username = ?', [cleanUsername]
   )
   const staff = rows[0]
   const valid = await bcrypt.compare(password, staff?.password_hash ?? DUMMY_HASH)
@@ -56,12 +70,9 @@ export async function login({ username, password }, ip) {
   loginLimiter.reset(key)
   await pool.execute('UPDATE staff_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [staff.id])
 
-  const token = jwt.sign({ sub: String(staff.id) }, jwtSecret(), { algorithm: JWT_ALGORITHM, expiresIn: `${SESSION_HOURS}h` })
-  return { token, maxAgeMs: SESSION_HOURS * 60 * 60 * 1000, staff: publicStaff(staff) }
+  return { ...issueToken(staff), staff: publicStaff(staff) }
 }
 
-// Token -> staf aktif. Status aktif selalu dibaca ulang dari database, jadi menonaktifkan
-// akun langsung berlaku tanpa menunggu token kedaluwarsa. Semua staf adalah admin (tanpa role).
 // Payload token yang sah, atau error 401. Algoritma dikunci ke HS256: token dengan algoritma lain
 // (termasuk "none") ditolak walau ditandatangani dengan rahasia yang sama.
 export function verifyStaffToken(token) {
@@ -73,16 +84,21 @@ export function verifyStaffToken(token) {
   }
 }
 
+// Token -> staf aktif. Status aktif, peran, dan versi sesi selalu dibaca ulang dari database, jadi
+// menonaktifkan akun atau mengganti password langsung berlaku tanpa menunggu token kedaluwarsa.
+// Token lama tanpa klaim v dianggap versi 0.
 export async function staffFromToken(token) {
   const payload = verifyStaffToken(token)
   const [rows] = await pool.execute(
-    'SELECT id, username, is_active FROM staff_users WHERE id = ?', [Number(payload.sub)]
+    'SELECT id, username, is_admin, is_active, session_version FROM staff_users WHERE id = ?', [Number(payload.sub)]
   )
   const staff = rows[0]
   if (!staff || !staff.is_active) throw authError('Akun tidak aktif. Silakan login kembali.')
+  if (Number(payload.v ?? 0) !== Number(staff.session_version)) throw authError('Sesi berakhir karena password diganti. Silakan login kembali.')
   return publicStaff(staff)
 }
 
+// Data staf yang boleh dikirim ke klien. isAdmin hanya membatasi kelola akun staf.
 function publicStaff(staff) {
-  return { id: staff.id, username: staff.username }
+  return { id: staff.id, username: staff.username, isAdmin: Boolean(staff.is_admin) }
 }

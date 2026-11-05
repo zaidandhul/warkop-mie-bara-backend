@@ -28,7 +28,8 @@ test('database lama tanpa catatan: 001–004 baseline, 005–006 dijalankan, dat
   const database = tempDatabaseName('legacy')
   created.push(database)
   await migrate({ database })
-  // Tiru database yang dibuat sebelum runner ada dan belum menerima migrasi 005/006.
+  // Tiru database yang dibuat sebelum runner ada dan belum menerima migrasi 005 ke atas.
+  // Setiap migrasi baru (007, 008, ...) harus ikut dibatalkan di sini.
   await withConnection(async (c) => {
     await c.query('DROP TABLE schema_migrations')
     const dropIfExists = async (sql) => { try { await c.query(sql) } catch (error) { if (error.code !== 'ER_CANT_DROP_FIELD_OR_KEY') throw error } }
@@ -37,6 +38,7 @@ test('database lama tanpa catatan: 001–004 baseline, 005–006 dijalankan, dat
     await dropIfExists('ALTER TABLE orders DROP FOREIGN KEY fk_orders_paid_by')
     await dropIfExists('ALTER TABLE orders DROP CHECK chk_orders_paid')
     await c.query('ALTER TABLE orders DROP COLUMN source, DROP COLUMN created_by_staff_id, DROP COLUMN paid_at, DROP COLUMN paid_method, DROP COLUMN paid_by_staff_id')
+    await c.query('ALTER TABLE staff_users DROP COLUMN is_admin, DROP COLUMN session_version') // 008
     await insertOrder(c, { code: 'MB-LAMA-1', phone: '081200000001' })
     await insertOrder(c, { code: 'MB-LAMA-2' })
   }, database)
