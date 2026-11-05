@@ -1,0 +1,608 @@
+openapi: 3.1.0
+info:
+  title: Warkop Mie Bara API
+  version: 1.0.0-pre-hosting
+  description: |
+    API pemesanan lewat QR meja (pelanggan, tanpa login) dan dashboard staf (login cookie).
+
+    - Semua uang dalam Rupiah bilangan bulat. Harga selalu dihitung ulang server; harga dari klien diabaikan.
+    - Waktu dalam ISO 8601 UTC; tanggal laporan/filter memakai tanggal WIB (UTC+7) `YYYY-MM-DD`.
+    - Error selalu `{ "error": "<pesan Bahasa Indonesia>" }` dengan status HTTP yang sesuai; error tak terduga
+      menjadi 500 dengan pesan generik.
+    - Rute `/api/admin/*` wajib cookie `mb_staff` dari `POST /api/auth/login`.
+servers:
+  - url: http://localhost:3000/api
+    description: Lokal (npm run dev)
+
+tags:
+  - name: Publik
+  - name: Auth
+  - name: Pesanan (staf)
+  - name: Menu (staf)
+  - name: Laporan & audit (staf)
+  - name: Staf
+
+paths:
+  /health:
+    get:
+      tags: [Publik]
+      summary: Cek API dan koneksi database
+      responses:
+        '200':
+          description: Sehat. `testMode` dan `testDatabase` hanya ada bila nama database berakhiran `_test`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, database]
+                properties:
+                  status: { type: string, const: ok }
+                  database: { type: string, const: connected }
+                  testMode: { type: boolean }
+                  testDatabase: { type: string }
+        '500': { $ref: '#/components/responses/ServerError' }
+
+  /menu:
+    get:
+      tags: [Publik]
+      summary: Menu aktif per kategori, topping aktif, biaya, dan jumlah meja
+      responses:
+        '200':
+          description: Kategori tanpa menu aktif tidak disertakan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Menu' }
+
+  /orders:
+    post:
+      tags: [Publik]
+      summary: Buat pesanan pelanggan
+      description: |
+        Dibatasi `ORDER_RATE_LIMIT` per IP per 10 menit (429) dan `MAX_ACTIVE_ORDERS_PER_TABLE` pesanan aktif per
+        meja per hari (409). Header `Idempotency-Key` (UUID) yang sama mengembalikan pesanan yang sudah ada (200).
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderRequest' }
+      responses:
+        '201': { description: 'Pesanan dibuat', content: { application/json: { schema: { $ref: '#/components/schemas/PublicOrder' } } } }
+        '200': { description: 'Idempotency-Key sudah pernah dipakai; pesanan lama dikembalikan', content: { application/json: { schema: { $ref: '#/components/schemas/PublicOrder' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: 'Meja sudah mencapai batas pesanan aktif', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: 'Terlalu banyak pesanan dari IP ini (header Retry-After)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /orders/{code}:
+    get:
+      tags: [Publik]
+      summary: Status pesanan berdasarkan kode (tanpa nama/nomor HP)
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, example: MB-3F2B8A3E1C4D4E5F9A6B } }
+      responses:
+        '200': { description: 'Pesanan', content: { application/json: { schema: { $ref: '#/components/schemas/PublicOrder' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login staf; memasang cookie httpOnly `mb_staff` (JWT 12 jam, SameSite=Lax, path=/api)
+      description: Gagal 5 kali untuk IP+username yang sama dalam 15 menit -> 429.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Berhasil
+          headers:
+            Set-Cookie: { schema: { type: string }, description: 'mb_staff=<jwt>; HttpOnly; SameSite=Lax; Path=/api' }
+          content:
+            application/json:
+              schema: { type: object, properties: { staff: { $ref: '#/components/schemas/StaffSession' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { description: 'Terlalu banyak percobaan login', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Hapus cookie sesi
+      responses:
+        '204': { description: Cookie dihapus }
+
+  /admin/me:
+    get:
+      tags: [Auth]
+      summary: Staf yang sedang login
+      security: [{ staffCookie: [] }]
+      responses:
+        '200': { description: 'Staf', content: { application/json: { schema: { type: object, properties: { staff: { $ref: '#/components/schemas/StaffSession' } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /admin/me/password:
+    post:
+      tags: [Auth]
+      summary: Ganti password sendiri
+      description: Semua sesi lama staf ini berakhir; respons memasang cookie baru untuk sesi ini.
+      security: [{ staffCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, format: password }
+                newPassword: { type: string, format: password, minLength: 8, description: 'Maksimal 72 byte' }
+      responses:
+        '204': { description: Password diganti }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /admin/staff:
+    get:
+      tags: [Staf]
+      summary: Daftar akun staf (khusus admin)
+      security: [{ staffCookie: [] }]
+      responses:
+        '200': { description: 'Daftar', content: { application/json: { schema: { type: object, properties: { staff: { type: array, items: { $ref: '#/components/schemas/Staff' } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Staf]
+      summary: Tambah akun staf (khusus admin)
+      security: [{ staffCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, pattern: '^[a-zA-Z0-9._-]{3,50}$' }
+                password: { type: string, format: password, minLength: 8 }
+                isAdmin: { type: boolean, default: false }
+      responses:
+        '201': { description: 'Dibuat', content: { application/json: { schema: { $ref: '#/components/schemas/Staff' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: 'Username sudah dipakai', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/staff/{id}:
+    patch:
+      tags: [Staf]
+      summary: Aktif/nonaktif atau ubah peran staf (khusus admin)
+      description: Tidak bisa menonaktifkan/menurunkan akun sendiri; harus tersisa minimal satu admin aktif.
+      security: [{ staffCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { isActive: { type: boolean }, isAdmin: { type: boolean } } }
+      responses:
+        '200': { description: 'Diperbarui', content: { application/json: { schema: { $ref: '#/components/schemas/Staff' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/staff/{id}/password:
+    post:
+      tags: [Staf]
+      summary: Reset password staf (khusus admin); semua sesi staf itu berakhir
+      security: [{ staffCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [password], properties: { password: { type: string, format: password, minLength: 8 } } }
+      responses:
+        '204': { description: Password diganti }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/orders:
+    get:
+      tags: [Pesanan (staf)]
+      summary: Pesanan satu hari (WIB), urut paling lama dulu
+      security: [{ staffCookie: [] }]
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date }, description: 'Tanggal WIB; default hari ini' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/OrderStatus' } }
+      responses:
+        '200':
+          description: Pesanan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date: { type: string, format: date }
+                  orders: { type: array, items: { $ref: '#/components/schemas/AdminOrder' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Pesanan (staf)]
+      summary: Pesanan diinput kasir
+      description: |
+        Validasi sama dengan rute publik. Nama kosong menjadi "Meja N", metode bayar selalu kasir, tanpa rate limit
+        dan tanpa batas pesanan per meja. `paidMethod` opsional untuk langsung lunas.
+      security: [{ staffCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/OrderRequest' }
+                - type: object
+                  properties:
+                    paidMethod: { oneOf: [{ $ref: '#/components/schemas/PaidMethod' }, { type: 'null' }] }
+      responses:
+        '201': { description: 'Dibuat', content: { application/json: { schema: { $ref: '#/components/schemas/PublicOrder' } } } }
+        '200': { description: 'Idempotency-Key sudah dipakai', content: { application/json: { schema: { $ref: '#/components/schemas/PublicOrder' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /admin/orders/{code}/status:
+    patch:
+      tags: [Pesanan (staf)]
+      summary: Ubah status pesanan
+      description: |
+        Alur: menunggu → diproses → siap → selesai; menunggu/diproses → dibatalkan (tidak bila sudah lunas).
+        409 bila status sudah sama atau sudah diubah staf lain lebih dulu. Dicatat di audit log.
+      security: [{ staffCookie: [] }]
+      parameters: [{ name: code, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [status], properties: { status: { $ref: '#/components/schemas/OrderStatus' } } }
+      responses:
+        '200': { description: 'Diubah', content: { application/json: { schema: { type: object, properties: { id: { type: string }, status: { $ref: '#/components/schemas/OrderStatus' } } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/orders/{code}/payment:
+    patch:
+      tags: [Pesanan (staf)]
+      summary: Tandai lunas (tunai/QRIS manual) atau batalkan tanda lunas
+      description: Pesanan dibatalkan tidak bisa ditandai lunas. Dicatat di audit log.
+      security: [{ staffCookie: [] }]
+      parameters: [{ name: code, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method: { oneOf: [{ $ref: '#/components/schemas/PaidMethod' }, { type: 'null' }], description: 'null = batalkan lunas' }
+      responses:
+        '200':
+          description: Diubah
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  paidAt: { type: [string, 'null'], format: date-time }
+                  paidMethod: { oneOf: [{ $ref: '#/components/schemas/PaidMethod' }, { type: 'null' }] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/menu:
+    get:
+      tags: [Menu (staf)]
+      summary: Semua menu (aktif dan habis)
+      security: [{ staffCookie: [] }]
+      responses:
+        '200':
+          description: Menu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/AdminMenuItem' } }
+
+  /admin/menu/{id}:
+    patch:
+      tags: [Menu (staf)]
+      summary: Ubah harga dan/atau ketersediaan menu (dicatat di audit log bila nilainya berubah)
+      security: [{ staffCookie: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isActive: { type: boolean }
+                price: { type: integer, minimum: 0, maximum: 10000000 }
+      responses:
+        '200': { description: 'Diubah', content: { application/json: { schema: { $ref: '#/components/schemas/AdminMenuItem' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/audit-log:
+    get:
+      tags: [Laporan & audit (staf)]
+      summary: Perubahan terbaru oleh staf
+      security: [{ staffCookie: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: Entri terbaru dulu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries: { type: array, items: { allOf: [{ $ref: '#/components/schemas/AuditEntry' }, { type: object, properties: { entityId: { type: string } } }] } }
+
+  /admin/reports/sales:
+    get:
+      tags: [Laporan & audit (staf)]
+      summary: Laporan penjualan rentang tanggal WIB (inklusif, maksimal 92 hari)
+      description: Omzet = total pesanan yang tidak dibatalkan (lunas maupun belum).
+      security: [{ staffCookie: [] }]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date }, description: 'Default hari ini' }
+        - { name: to, in: query, schema: { type: string, format: date }, description: 'Default sama dengan from' }
+      responses:
+        '200': { description: 'Laporan', content: { application/json: { schema: { $ref: '#/components/schemas/SalesReport' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+components:
+  securitySchemes:
+    staffCookie:
+      type: apiKey
+      in: cookie
+      name: mb_staff
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, format: uuid }
+      description: UUID per percobaan pesanan; mencegah pesanan dobel saat klik dobel atau kirim ulang.
+
+  responses:
+    BadRequest: { description: 'Input tidak valid', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: 'Belum login, sesi berakhir, atau akun nonaktif', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: 'Hanya admin', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: 'Tidak ditemukan', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: 'Konflik status (sudah berubah)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    ServerError: { description: 'Kesalahan server (pesan generik)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, example: Nomor meja tidak valid. Gunakan angka 1 sampai 10. }
+
+    OrderStatus: { type: string, enum: [menunggu, diproses, siap, selesai, dibatalkan] }
+    PaidMethod: { type: string, enum: [tunai, qris_manual] }
+
+    MenuItem:
+      type: object
+      properties:
+        id: { type: string }
+        categoryId: { type: string }
+        name: { type: string }
+        desc: { type: [string, 'null'] }
+        price: { type: integer }
+        bestSeller: { type: boolean }
+        cold: { type: boolean }
+        check: { type: boolean, description: Harga masih perlu dikonfirmasi pemilik }
+        levels: { type: array, items: { type: integer } }
+        options: { type: array, items: { type: string }, description: Varian }
+        toppings: { type: array, items: { type: string }, description: Id topping yang boleh }
+        bestSellerRank: { type: [integer, 'null'], description: 'Peringkat terlaris 30 hari (1 = terlaris); tanpa jumlah terjual' }
+
+    Menu:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              items: { type: array, items: { $ref: '#/components/schemas/MenuItem' } }
+        toppings:
+          type: array
+          items: { type: object, properties: { id: { type: string }, name: { type: string }, price: { type: integer } } }
+        fee: { type: integer, description: Biaya lain per pesanan }
+        levelPriceStep: { type: integer, description: Tambahan harga per level di atas level 1 }
+        tableCount: { type: integer }
+
+    OrderRequest:
+      type: object
+      required: [tableNumber, items]
+      properties:
+        tableNumber: { type: string, example: '5', description: '1..tableCount; nol di depan diabaikan' }
+        customer:
+          type: object
+          properties:
+            name: { type: string, minLength: 2, maxLength: 100 }
+            phone: { type: string, description: 'Opsional; 08xx, +62, atau 62 (10–13 digit)' }
+        paymentMethod: { type: string, enum: [cashier], description: 'Wajib cashier untuk rute publik; online ditolak' }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            required: [itemId, qty]
+            properties:
+              itemId: { type: string }
+              qty: { type: integer, minimum: 1, maximum: 50 }
+              options:
+                type: object
+                properties:
+                  level: { type: [integer, 'null'] }
+                  variant: { type: [string, 'null'] }
+                  toppings: { type: array, items: { type: string } }
+                  note: { type: string, maxLength: 250 }
+
+    OrderItem:
+      type: object
+      properties:
+        itemId: { type: [string, 'null'] }
+        name: { type: string, description: Nama saat dipesan (snapshot) }
+        qty: { type: integer }
+        unitPrice: { type: integer }
+        lineTotal: { type: integer }
+        toppingDetails:
+          type: array
+          items: { type: object, properties: { id: { type: string }, name: { type: string }, price: { type: integer } } }
+        options:
+          type: object
+          properties:
+            level: { type: [integer, 'null'] }
+            variant: { type: [string, 'null'] }
+            toppings: { type: array, items: { type: string } }
+            note: { type: string }
+
+    OrderBase:
+      type: object
+      properties:
+        id: { type: string, example: MB-3F2B8A3E1C4D4E5F9A6B }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        tableNumber: { type: string }
+        paymentMethod: { type: string }
+        items: { type: array, items: { $ref: '#/components/schemas/OrderItem' } }
+        subtotal: { type: integer }
+        fee: { type: integer }
+        total: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    PublicOrder:
+      description: Pesanan untuk pelanggan; tanpa nama dan nomor HP.
+      allOf:
+        - $ref: '#/components/schemas/OrderBase'
+        - type: object
+          properties:
+            paid: { type: boolean }
+
+    AuditEntry:
+      type: object
+      properties:
+        action: { type: string, enum: [order_status, order_payment, menu_price, menu_availability] }
+        oldValue: { type: [string, 'null'] }
+        newValue: { type: [string, 'null'] }
+        staff: { type: [string, 'null'], description: 'Username; null bila akun sudah dihapus' }
+        at: { type: string, format: date-time }
+
+    AdminOrder:
+      allOf:
+        - $ref: '#/components/schemas/OrderBase'
+        - type: object
+          properties:
+            customerName: { type: string }
+            customerPhone: { type: [string, 'null'] }
+            source: { type: string, enum: [pelanggan, kasir] }
+            paidAt: { type: [string, 'null'], format: date-time }
+            paidMethod: { oneOf: [{ $ref: '#/components/schemas/PaidMethod' }, { type: 'null' }] }
+            updatedAt: { type: string, format: date-time }
+            createdBy: { type: [string, 'null'], description: Staf pembuat pesanan kasir }
+            paidBy: { type: [string, 'null'] }
+            history: { type: array, items: { $ref: '#/components/schemas/AuditEntry' } }
+
+    AdminMenuItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        price: { type: integer }
+        isActive: { type: boolean }
+        categoryId: { type: string }
+        categoryName: { type: string }
+
+    StaffSession:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        isAdmin: { type: boolean }
+
+    Staff:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        isAdmin: { type: boolean }
+        isActive: { type: boolean }
+        lastLoginAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    GroupTotal:
+      type: object
+      properties:
+        orders: { type: integer }
+        revenue: { type: integer }
+
+    SalesReport:
+      type: object
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        summary:
+          type: object
+          properties:
+            orders: { type: integer }
+            cancelledOrders: { type: integer }
+            revenue: { type: integer }
+            paidRevenue: { type: integer }
+            unpaidRevenue: { type: integer }
+            itemsSold: { type: integer }
+            averageOrder: { type: integer }
+            byPaidMethod: { type: object, properties: { tunai: { type: integer }, qris_manual: { type: integer } } }
+        byDay: { type: array, items: { allOf: [{ $ref: '#/components/schemas/GroupTotal' }, { type: object, properties: { date: { type: string, format: date } } }] } }
+        byTable: { type: array, items: { allOf: [{ $ref: '#/components/schemas/GroupTotal' }, { type: object, properties: { table: { type: string } } }] } }
+        byHour: { type: array, items: { allOf: [{ $ref: '#/components/schemas/GroupTotal' }, { type: object, properties: { hour: { type: integer, minimum: 0, maximum: 23 } } }] } }
+        topItems:
+          type: array
+          items: { type: object, properties: { itemId: { type: [string, 'null'] }, name: { type: string }, qty: { type: integer }, revenue: { type: integer } } }
+        orders:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              createdAt: { type: string, format: date-time }
+              tableNumber: { type: string }
+              customerName: { type: string }
+              source: { type: string }
+              status: { $ref: '#/components/schemas/OrderStatus' }
+              paidAt: { type: [string, 'null'], format: date-time }
+              paidMethod: { oneOf: [{ $ref: '#/components/schemas/PaidMethod' }, { type: 'null' }] }
+              subtotal: { type: integer }
+              fee: { type: integer }
+              total: { type: integer }
+              items: { type: array, items: { type: object, properties: { name: { type: string }, qty: { type: integer } } } }
