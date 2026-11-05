@@ -15,7 +15,12 @@ async function bestSellerRanks(items) {
       WHERE o.status <> 'dibatalkan' AND o.created_at >= ? AND oi.menu_item_id IS NOT NULL
       GROUP BY oi.menu_item_id`, [since]
   )
-  const sold = new Map(rows.map((row) => [row.itemId, Number(row.sold)]))
+  return rankBestSellers(items, new Map(rows.map((row) => [row.itemId, Number(row.sold)])))
+}
+
+// items (urutan default) + Map(id -> jumlah terjual) -> Map(id -> peringkat 1..n). Item tanpa penjualan
+// tidak diberi peringkat; seri diputuskan oleh urutan default.
+export function rankBestSellers(items, sold) {
   const ranked = items
     .map((item, index) => ({ id: item.id, index, sold: sold.get(item.id) ?? 0 }))
     .filter((entry) => entry.sold > 0)

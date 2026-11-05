@@ -47,7 +47,7 @@ test('assertProductionEnv: hanya memeriksa di production, exit(1) bila ada masal
 
 test('rahasia acak base64url (seperti dari crypto.randomBytes) tidak dianggap nilai contoh', async () => {
   const { randomBytes } = await import('node:crypto')
-  for (let i = 0; i < 2000; i += 1) {
+  for (let i = 0; i < 20000; i += 1) {
     const secret = randomBytes(48).toString('base64url')
     assert.deepEqual(productionEnvProblems({ ...GOOD, JWT_SECRET: secret }), [], secret)
   }

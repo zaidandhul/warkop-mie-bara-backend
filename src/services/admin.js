@@ -19,6 +19,17 @@ function fail(message, statusCode = 400) {
   return Object.assign(new Error(message), { statusCode })
 }
 
+// Masalah perubahan status (pesan + statusCode) atau null bila boleh. paid = pesanan sudah lunas.
+export function transitionProblem(current, next, paid = false) {
+  if (!ORDER_STATUSES.includes(next)) return { message: 'Status pesanan tidak dikenal.', statusCode: 400 }
+  if (current === next) return { message: `Pesanan sudah berstatus "${current}".`, statusCode: 409 }
+  if (!TRANSITIONS[current]?.includes(next)) return { message: `Status tidak bisa diubah dari "${current}" ke "${next}".`, statusCode: 400 }
+  if (next === 'dibatalkan' && paid) {
+    return { message: 'Pesanan sudah lunas. Batalkan status lunas dulu sebelum membatalkan pesanan.', statusCode: 400 }
+  }
+  return null
+}
+
 export async function listOrders({ status, date } = {}) {
   const day = date ? date : todayWib()
   const range = wibDayRange(day)
@@ -67,15 +78,9 @@ export async function updateOrderStatus(orderCode, nextStatus, staffId = null) {
     const [rows] = await connection.execute('SELECT status, paid_at FROM orders WHERE order_code = ?', [orderCode])
     if (!rows.length) throw fail('Pesanan tidak ditemukan.', 404)
     const current = rows[0].status
-    if (current === nextStatus) throw fail(`Pesanan sudah berstatus "${current}".`, 409)
-
-    if (!TRANSITIONS[current].includes(nextStatus)) {
-      throw fail(`Status tidak bisa diubah dari "${current}" ke "${nextStatus}".`)
-    }
+    const problem = transitionProblem(current, nextStatus, Boolean(rows[0].paid_at))
+    if (problem) throw fail(problem.message, problem.statusCode)
     const cancelling = nextStatus === 'dibatalkan'
-    if (cancelling && rows[0].paid_at) {
-      throw fail('Pesanan sudah lunas. Batalkan status lunas dulu sebelum membatalkan pesanan.')
-    }
 
     // WHERE status = current: kalau tablet lain sudah mengubahnya duluan, tidak ada baris yang berubah.
     // Pembatalan juga mensyaratkan belum lunas, kalau kasir menandai lunas di saat yang sama.

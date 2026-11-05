@@ -1,9 +1,9 @@
 // Pemeriksaan konfigurasi saat NODE_ENV=production. Mode dev/test tidak diperiksa di sini (JWT_SECRET
 // tetap wajib di semua mode, lihat jwtSecret() di services/auth.js).
 const MIN_SECRET_LENGTH = 32
-// Pola nilai contoh/placeholder. Hanya kata panjang (>= 4 huruf) supaya rahasia acak base64 tidak
-// kebetulan cocok.
-const PLACEHOLDER = /(ganti|change|contoh|example|sample|placeholder|rahasia|secret|password|todo)/i
+// Pola nilai contoh/placeholder. Hanya kata >= 5 huruf supaya rahasia acak base64 tidak kebetulan
+// cocok (kata 4 huruf seperti "todo" pernah muncul di rahasia acak).
+const PLACEHOLDER = /(ganti|change|contoh|example|sample|placeholder|rahasia|secret|password)/i
 
 // Mengembalikan daftar masalah (kosong = aman). Nilai rahasia tidak pernah disertakan di pesan.
 export function productionEnvProblems(env) {
