@@ -15,12 +15,14 @@
     "staff:create": "node --env-file-if-exists=.env src/scripts/create-staff.js",
     "dev:test": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.test src/server.js",
     "db:test:setup": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/setup-test-db.js",
-    "staff:create:test": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/create-staff.js"
+    "staff:create:test": "node --env-file-if-exists=.env --env-file-if-exists=.env.test src/scripts/create-staff.js",
+    "test": "node --test test/unit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.14.0"
+    "mysql2": "^3.14.0",
+    "pino": "^10.4.0"
   }
 }

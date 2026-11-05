@@ -6,11 +6,18 @@ import { STAFF_COOKIE, jwtSecret, login } from './services/auth.js'
 import { salesReport } from './services/reports.js'
 import { cookieOptions, requireStaff } from './middleware/auth.js'
 import { rateLimit } from './middleware/rateLimit.js'
+import { securityHeaders } from './middleware/securityHeaders.js'
+import { requestLog } from './middleware/requestLog.js'
+import { errorHandler } from './middleware/errorHandler.js'
+import { logger } from './logger.js'
 import { pool } from './db.js'
+import { assertProductionEnv } from './config/env.js'
 
-jwtSecret() // Gagal start lebih awal jika JWT_SECRET belum diisi.
+assertProductionEnv() // NODE_ENV=production: tolak start bila JWT_SECRET/MYSQL_* tidak aman.
+jwtSecret() // Semua mode: gagal start lebih awal jika JWT_SECRET belum diisi.
 
 const app = express()
+app.disable('x-powered-by')
 const port = Number(process.env.PORT || 3000)
 const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
 
@@ -29,6 +36,8 @@ const orderRateLimit = rateLimit({
   message: (minutes) => `Terlalu banyak pesanan dari perangkat ini. Coba lagi dalam ${minutes} menit atau hubungi kasir.`,
 })
 
+app.use(requestLog(logger))
+app.use(securityHeaders)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', allowedOrigin)
   res.header('Access-Control-Allow-Credentials', 'true')
@@ -130,15 +139,8 @@ admin.get('/reports/sales', async (req, res) => {
 })
 app.use('/api/admin', admin)
 
-app.use((error, _req, res, _next) => {
-  if (error instanceof SyntaxError && 'body' in error) {
-    return res.status(400).json({ error: 'Format JSON tidak valid.' })
-  }
-  if (error.statusCode) return res.status(error.statusCode).json({ error: error.message })
-  console.error(error)
-  res.status(500).json({ error: 'Terjadi kesalahan pada server.' })
-})
+app.use(errorHandler(logger))
 
 app.listen(port, () => {
-  console.log(`Mie Bara API berjalan di http://localhost:${port}`)
+  logger.info({ port }, `Mie Bara API berjalan di http://localhost:${port}`)
 })

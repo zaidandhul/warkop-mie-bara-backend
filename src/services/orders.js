@@ -99,6 +99,9 @@ export async function createOrder(payload, { idempotencyKey = null, staffId = nu
   const connection = await pool.getConnection()
   try {
     await connection.beginTransaction()
+    // Sengaja FOR UPDATE (eksklusif), bukan FOR SHARE: kunci ini membuat pembuatan pesanan berjalan
+    // bergiliran, dan batas pesanan aktif per meja bergantung padanya. Dengan FOR SHARE, pesanan
+    // serentak untuk meja yang sama memicu ER_LOCK_DEADLOCK (500); terbukti di spec E2E J, 2026-11-05.
     const [settings] = await connection.execute(
       "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('other_fee', 'level_price_step') FOR UPDATE"
     )
