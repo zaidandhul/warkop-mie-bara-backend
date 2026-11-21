@@ -237,62 +237,22 @@
         {
           "id": "nasi",
           "name": "Nasi",
-          "price": 4000,
-          "levels": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "toppings": [
-            "telur",
-            "sosis"
-          ]
+          "price": 4000
         },
         {
           "id": "sambal-penyet",
           "name": "Sambal Penyet",
-          "price": 3000,
-          "levels": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "toppings": [
-            "telur",
-            "sosis"
-          ]
+          "price": 3000
         },
         {
           "id": "tempe-goreng",
           "name": "Tempe Goreng",
-          "price": 2000,
-          "levels": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "toppings": [
-            "telur",
-            "sosis"
-          ]
+          "price": 2000
         },
         {
           "id": "tahu-goreng",
           "name": "Tahu Goreng",
-          "price": 2000,
-          "levels": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "toppings": [
-            "telur",
-            "sosis"
-          ]
+          "price": 2000
         }
       ]
     },
@@ -303,74 +263,62 @@
         {
           "id": "siomay-ayam-sosis",
           "name": "Siomay Ayam Sosis",
-          "price": 16000,
-          "check": true
+          "price": 16000
         },
         {
           "id": "siomay-ayam-udang",
           "name": "Siomay Ayam Udang",
-          "price": 16000,
-          "check": true
+          "price": 16000
         },
         {
           "id": "tim-tahu",
           "name": "Tim Tahu",
-          "price": 17000,
-          "check": true
+          "price": 17000
         },
         {
           "id": "lumpia-ayam-udang",
           "name": "Lumpia Ayam Udang",
-          "price": 17000,
-          "check": true
+          "price": 17000
         },
         {
           "id": "cakwe-ayam-udang",
           "name": "Cakwe Ayam Udang",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "bola-rambutan",
           "name": "Bola Rambutan",
-          "price": 17000,
-          "check": true
+          "price": 17000
         },
         {
           "id": "siomay-au-spesial",
           "name": "Siomay Ayam Udang Spesial",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "siomay-as-spesial",
           "name": "Siomay Ayam Sosis Spesial",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "siomay-crabstik",
           "name": "Siomay Crabstik Spesial",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "siomay-jamur",
           "name": "Siomay Jamur Spesial",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "gyoza-spesial",
           "name": "Gyoza Spesial",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "bola-udang-spesial",
           "name": "Bola Udang Spesial",
-          "price": 15000,
-          "check": true
+          "price": 15000
         },
         {
           "id": "basreng",
@@ -524,26 +472,22 @@
         {
           "id": "josua",
           "name": "Josua",
-          "price": 7000,
-          "check": true
+          "price": 7000
         },
         {
           "id": "extra-joss",
           "name": "Extra Joss",
-          "price": 6000,
-          "check": true
+          "price": 6000
         },
         {
           "id": "nutrisari-jeruk",
           "name": "Nutri Sari Jeruk",
-          "price": 6000,
-          "check": true
+          "price": 6000
         },
         {
           "id": "nutrisari-milky",
           "name": "Nutri Sari Milky Orange",
-          "price": 6000,
-          "check": true
+          "price": 6000
         },
         {
           "id": "kopi-hitam",

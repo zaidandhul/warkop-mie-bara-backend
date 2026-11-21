@@ -14,13 +14,14 @@ try {
       for (const item of category.items) {
         const [result] = await connection.execute(
           'UPDATE menu_items SET levels_json = ?, allowed_toppings_json = ? WHERE id = ?',
-          [JSON.stringify(item.levels), JSON.stringify(item.toppings), item.id]
+          [item.levels ? JSON.stringify(item.levels) : null,
+            item.toppings ? JSON.stringify(item.toppings) : null, item.id]
         )
         updated += result.affectedRows
       }
     }
     await connection.commit()
-    console.log(`Opsi level pedas dan topping diperbarui untuk ${updated} menu makanan.`)
+    console.log(`Opsi level pedas dan topping per item diperbarui untuk ${updated} menu makanan.`)
   } catch (error) {
     await connection.rollback()
     throw error

@@ -5,29 +5,20 @@ Dokumen ini berisi pekerjaan fase hosting, keputusan yang menunggu pemilik, dan 
 
 ## 1. Keputusan yang menunggu pemilik
 
-### a. Harga 16 item yang belum dikonfirmasi
-Harga diambil dari foto menu yang kurang jelas (`needs_price_check`). Setelah dikonfirmasi:
-1. Perbaiki harga di `backend/src/data/menu.json` dan hapus tanda `check`.
-2. Terapkan dengan `npm run db:seed -- --force`.
-
-| Kategori | Item (harga sementara) |
-|---|---|
-| Camilan (12) | Siomay Ayam Sosis (16.000), Siomay Ayam Udang (16.000), Tim Tahu (17.000), Lumpia Ayam Udang (17.000), Cakwe Ayam Udang (15.000), Bola Rambutan (17.000), Siomay Ayam Udang Spesial (15.000), Siomay Ayam Sosis Spesial (15.000), Siomay Crabstik Spesial (15.000), Siomay Jamur Spesial (15.000), Gyoza Spesial (15.000), Bola Udang Spesial (15.000) |
-| Minuman (4) | Josua (7.000), Extra Joss (6.000), Nutri Sari Jeruk (6.000), Nutri Sari Milky Orange (6.000) |
-
-### b. Item mana yang punya level pedas dan topping
-- **Saat ini:** hanya Varian Mie (7), Special (3), dan Bara Nusantara (8) yang punya level 1–4 dan topping telur/sosis. Camilan, Signature Drink, dan All Variant Drink hanya menerima catatan.
+### a. Biaya level dan biaya pesanan
+- Harga 16 item yang sebelumnya ditandai `needs_price_check` sudah dicocokkan dengan foto menu dan penandanya dihapus.
+- Opsi level dan topping sekarang ditentukan per item. Nasi, Sambal Penyet, Tempe Goreng, dan Tahu Goreng hanya menerima catatan.
 - **Belum diputuskan:** apakah level menambah harga (sekarang `levelPriceStep = 0`) dan apakah ada biaya lain per pesanan (sekarang `otherFee = 0`).
 
-### c. Lama penyimpanan nomor HP pelanggan
+### b. Lama penyimpanan nomor HP pelanggan
 - **Saat ini:** default 90 hari (`PHONE_RETENTION_DAYS`).
 - **Yang perlu diputuskan:** lama retensi yang sesuai kebijakan privasi, dan apakah pembersihan dijadwalkan otomatis (lihat bagian 2).
 
-### d. Target hosting dan alamat publik
+### c. Target hosting dan alamat publik
 - **Pilihan:** satu VPS untuk frontend dan backend, atau Vercel untuk frontend ditambah VPS untuk backend.
 - **Juga perlu:** domain atau alamat yang akan dicetak di QR meja.
 
-## 2. Pekerjaan fase hosting (menunggu keputusan 1d)
+## 2. Pekerjaan fase hosting (menunggu keputusan 1c)
 
 | Pekerjaan | Catatan |
 |---|---|
