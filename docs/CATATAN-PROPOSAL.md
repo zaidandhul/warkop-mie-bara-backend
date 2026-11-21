@@ -14,7 +14,7 @@ Ringkasan konteks proposal:
 |---|---|---|
 | QR per meja | ✅ | Halaman `/admin/qr` mencetak satu QR per meja (`?tableNumber=N`). Jumlah meja diatur `TABLE_COUNT` (default 10) |
 | Menu digital: pencarian, filter, sorting | ✅ | Pencarian nama dan deskripsi (tanpa beda huruf besar/kecil), filter kategori, urutan default/termurah/termahal/terlaris. Pilihan tersimpan saat pelanggan kembali dari keranjang |
-| Kustomisasi + instruksi khusus | ✅ | Level pedas, varian, topping, dan catatan per item. Opsi divalidasi server terhadap data menu. Item mana yang punya level/topping masih menunggu keputusan pemilik |
+| Kustomisasi + instruksi khusus | ✅ | Level pedas, varian, topping, dan catatan ditentukan per item serta divalidasi server. Nasi, Sambal Penyet, Tempe Goreng, dan Tahu Goreng hanya menerima catatan |
 | Keranjang | ✅ | Harga keranjang disamakan dengan menu terbaru setiap kali menu dimuat; item yang habis dikeluarkan dengan pemberitahuan |
 | Konfirmasi + ID pesanan | ✅ | Kode pesanan `MB-<20 hex>` ditampilkan di Riwayat Pesanan (disimpan 24 jam di perangkat pelanggan), dengan halaman status per pesanan |
 | Status Menunggu / Diproses / Siap | ✅ (diperluas) | Ditambah **Selesai** dan **Dibatalkan**. Halaman status pelanggan diperbarui otomatis dan berhenti memperbarui saat status final |

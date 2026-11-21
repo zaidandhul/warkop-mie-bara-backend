@@ -5,6 +5,7 @@
 // migrasi ditandai baseline di schema_migrations), seed menu, lalu kosongkan opsi kategori
 // minuman/camilan seperti di database utama. Menolak jalan jika nama database tidak berakhiran _test.
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import mysql from 'mysql2/promise'
 import { listMigrationFiles, migrate } from '../database/migrator.js'
 
@@ -24,7 +25,7 @@ const connection = await mysql.createConnection({
 })
 
 function runScript(file) {
-  const result = spawnSync(process.execPath, [new URL(file, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')], {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL(file, import.meta.url))], {
     stdio: 'inherit',
     env: process.env,
   })
